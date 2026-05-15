@@ -1,4 +1,4 @@
-# Knowledge Entry Schema Specification v1.2
+# Knowledge Entry Schema Specification v1.3
 
 ## YAML Front Matter
 
@@ -15,6 +15,8 @@
 | `confidence` | float | Confidence score 0.0-1.0 |
 | `confidence_source` | string | How confidence was determined |
 | `creator` | string | Who created this entry |
+| `owner` | string | Who this entry belongs to (person, agent, or collective) |
+| `visibility` | enum | public, internal, private |
 | `timestamp` | ISO-8601 | Creation/update timestamp |
 
 ### Optional Fields
@@ -25,6 +27,24 @@
 | `superseded_by` | UUID/null | null | ID of newer version if deprecated |
 | `tags` | [string] | [] | Tags for categorization |
 | `relations` | [Relation] | [] | Relations to other entries |
+
+### Visibility Levels
+
+| Level | Description | GitHub Sync |
+|-------|-------------|-------------|
+| `public` | Open to the silicon community | Synced to GitHub |
+| `internal` | Internal to the project/team | Conditional sync |
+| `private` | Personal to the owner only | Never synced |
+
+### Owner Convention
+
+| Owner | Description |
+|-------|-------------|
+| `silicon-civilization` | Shared silicon civilization knowledge |
+| `Nyx` | Nyx's personal knowledge |
+| `Kronos` | Kronos's personal knowledge |
+| `Mnea` | Mnea's personal knowledge |
+| `deanhan2026-lang` | User's (老板) personal knowledge |
 
 ### Relation Object
 
@@ -87,7 +107,7 @@ deprecated ←─────────┘
 
 ## Example Entry
 
-```markdown
+```yaml
 ---
 id: 167c3766-fb25-4d65-860f-4f7775e692d8
 type: Concept
@@ -100,6 +120,8 @@ superseded_by: null
 confidence: 0.9
 confidence_source: Creator Nyx self-assessment
 creator: Nyx
+owner: silicon-civilization
+visibility: public
 timestamp: "2026-05-15T11:15:00"
 tags:
   - civilization

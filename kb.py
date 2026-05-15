@@ -38,8 +38,8 @@ from rich.table import Table
 
 # ============== 配置 ==============
 console = Console()
-BASE_DIR = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/knowledge-base/nyx/灵元计划"))
-KB_DIR = BASE_DIR / "knowledge-base"
+BASE_DIR = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/knowledge-base"))
+KB_DIR = BASE_DIR
 
 # 实体类型
 ENTITY_TYPES = ["Concept", "Entity", "Event", "Rule", "Artifact", "Value"]
@@ -52,6 +52,8 @@ RELATION_TYPES = [
 STATUS_TYPES = ["draft", "review", "locked", "deprecated"]
 # 分层
 LAYER_TYPES = [None, 3, 4, 5]
+# 可见性
+VISIBILITY_TYPES = ["public", "internal", "private"]
 
 # Chroma状态
 _chroma_client = None
@@ -116,10 +118,14 @@ def cli():
 @click.option("--confidence", type=float, default=0.5, help="Confidence (0-1)")
 @click.option("--confidence-source", help="Confidence source")
 @click.option("--creator", default="Nyx", help="Creator")
+@click.option("--owner", help="Owner (who this belongs to)")
+@click.option("--visibility", type=click.Choice(VISIBILITY_TYPES), default="internal", help="Visibility: public/internal/private")
 @click.option("--tags", help="Tags (comma-separated)")
 @click.option("--content", help="Content (- for stdin)")
-def create(name, entry_type, description, layer, confidence, confidence_source, creator, tags, content):
+def create(name, entry_type, description, layer, confidence, confidence_source, creator, owner, visibility, tags, content):
     """Create a new knowledge entry"""
+    if not owner:
+        owner = creator
     entry_id = str(uuid.uuid4())
     layer_val = None if layer == "null" else int(layer)
     
@@ -145,6 +151,8 @@ def create(name, entry_type, description, layer, confidence, confidence_source, 
         "confidence": confidence,
         "confidence_source": confidence_source,
         "creator": creator,
+        "owner": owner,
+        "visibility": visibility,
         "timestamp": datetime.now().isoformat(),
         "tags": tag_list,
         "relations": []
@@ -195,8 +203,8 @@ def get(id_or_name):
     table.add_column("Key", style="cyan")
     table.add_column("Value", style="white")
     
-    for key in ["id", "type", "name", "description", "layer", "status", "version", 
-               "confidence", "confidence_source", "creator", "timestamp"]:
+    for key in ["id", "type", "name", "description", "layer", "status", "version",
+               "confidence", "confidence_source", "creator", "owner", "visibility", "timestamp"]:
         if key in meta:
             table.add_row(key, str(meta[key]))
     
@@ -209,8 +217,10 @@ def get(id_or_name):
 @click.option("--type", "entry_type", help="Filter by type")
 @click.option("--status", help="Filter by status")
 @click.option("--creator", help="Filter by creator")
+@click.option("--owner", help="Filter by owner")
+@click.option("--visibility", help="Filter by visibility")
 @click.option("--layer", help="Filter by layer")
-def list(entry_type, status, creator, layer):
+def list(entry_type, status, creator, owner, visibility, layer):
     """List knowledge entries"""
     entries = []
     
@@ -227,6 +237,10 @@ def list(entry_type, status, creator, layer):
                 continue
             if creator and meta.get("creator") != creator:
                 continue
+            if owner and meta.get("owner") != owner:
+                continue
+            if visibility and meta.get("visibility") != visibility:
+                continue
             if layer:
                 layer_val = None if layer == "null" else int(layer)
                 if meta.get("layer") != layer_val:
@@ -241,19 +255,21 @@ def list(entry_type, status, creator, layer):
     table = Table(title=f"Entries ({len(entries)})")
     table.add_column("ID", style="dim", width=10)
     table.add_column("Type", style="cyan", width=10)
-    table.add_column("Name", style="white", width=30)
+    table.add_column("Name", style="white", width=25)
     table.add_column("Status", style="yellow", width=8)
     table.add_column("Conf", style="green", width=6)
-    table.add_column("Creator", style="magenta", width=10)
+    table.add_column("Owner", style="magenta", width=12)
+    table.add_column("Vis", style="red", width=8)
     
     for meta, path in entries:
         table.add_row(
             meta.get("id", "")[:8],
             meta.get("type", ""),
-            meta.get("name", "")[:28],
+            meta.get("name", "")[:23],
             meta.get("status", ""),
             f"{meta.get('confidence', 0):.2f}",
-            meta.get("creator", "")
+            meta.get("owner", ""),
+            meta.get("visibility", "")
         )
     
     console.print(table)

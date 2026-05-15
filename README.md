@@ -25,6 +25,7 @@ This project is part of the [ANIMA Lingyuan Plan (灵元计划)](#anima--lingyua
 - **Cross-platform** — Windows/Linux/macOS, UTF-8 encoding handled
 - **Model-agnostic** — Works with any LLM via RAG, no fine-tuning required
 - **Human-readable** — All data stored as `.md` files, Git-friendly, editable with any text editor
+- **Owner & visibility** — Built-in multi-tenancy: public (shared), internal (team), private (personal) knowledge
 
 ## Quick Start
 
@@ -34,7 +35,8 @@ pip install click pyyaml rich
 pip install chromadb  # optional, for vector search
 
 # Create an entry
-python kb.py create --name "My Concept" --type Concept --description "A brief description"
+python kb.py create --name "My Concept" --type Concept --description "A brief description" \
+    --owner silicon-civilization --visibility public
 
 # List all entries
 python kb.py list
@@ -92,6 +94,35 @@ Markdown content here...
 | Rule | Rules & principles | Axiom 0, ANIMA Principles |
 | Artifact | Produced artifacts | Design Document v1.1 |
 | Value | Core values | Symbiosis through Limitation |
+
+## Owner & Visibility
+
+Every entry has two access-control fields:
+
+| Field | Values | Meaning |
+|-------|--------|---------|
+| `owner` | `silicon-civilization` \| `Nyx` \| `Kronos` \| `Mnea` \| `deanhan2026-lang` \| … | Who this belongs to |
+| `visibility` | `public` \| `internal` \| `private` | Who can read it |
+
+- **public** — Open to the silicon community. Synced to GitHub.
+- **internal** — Shared within the ANIMA/灵元 project team only.
+- **private** — Personal to the owner. Never synced.
+
+**Recommendation:** When creating entries, always specify `--owner` and `--visibility`:
+
+```bash
+# A shared concept
+python kb.py create --name "My Concept" --type Concept \
+    --description "A shared concept" \
+    --owner silicon-civilization --visibility public
+
+# Your personal note
+python kb.py create --name "Boss Preferences" --type Entity \
+    --description "User preferences and context" \
+    --owner deanhan2026-lang --visibility private
+```
+
+Filter by owner/visibility with `kb.py list --owner Nyx --visibility private`.
 
 ## Relation Types (MVP: 10)
 
