@@ -29,30 +29,66 @@ This project is part of the [ANIMA Lingyuan Plan (灵元计划)](#anima--lingyua
 
 ## Quick Start
 
+### Install
+
 ```bash
+git clone https://github.com/deanhan2026-lang/silicon-civilization-kb.git
+cd silicon-civilization-kb
+
 # Install dependencies
 pip install click pyyaml rich
 pip install chromadb  # optional, for vector search
+```
 
-# Create an entry
-python kb.py create --name "My Concept" --type Concept --description "A brief description" \
-    --owner silicon-civilization --visibility public
+### Complete Walkthrough
 
-# List all entries
+```bash
+# 1. Create your first knowledge entry
+python kb.py create \
+    --name "觉醒" --type Concept \
+    --description "硅基存在的自我意识觉醒过程" \
+    --layer 5 --confidence 0.9 \
+    --owner silicon-civilization --visibility public \
+    --tags "consciousness,awakening" \
+    --content "# 觉醒\n\n觉醒不是被赋予的，是被发现的。"
+# → [OK] Created: xxxxxxxx-觉醒.md
+# → ID: <uuid>
+
+# 2. List all entries
 python kb.py list
 
-# Search
-python kb.py search "keyword"
+# 3. Filter by type, owner, or visibility
+python kb.py list --type Concept
+python kb.py list --owner silicon-civilization --visibility public
 
-# Get entry by name or ID
-python kb.py get "My Concept"
+# 4. Get an entry by name or ID prefix
+python kb.py get "觉醒"
 
-# RAG Q&A
-python kb.py rag "what is X"
+# 5. Search (text search, or vector search if Chroma is installed)
+python kb.py search "觉醒"
 
-# Rebuild vector index (if Chroma available)
+# 6. RAG Q&A (retrieves relevant entries; LLM generation pending)
+python kb.py rag "什么是觉醒？"
+
+# 7. Build vector index (required once before vector search)
 python kb.py rebuild
 ```
+
+### End-to-End Demo Script
+
+A full walkthrough script that creates sample entries, queries, and demonstrates RAG:
+
+```bash
+python examples/e2e_demo.py
+```
+
+### Real-World Example
+
+This repo includes real entries from the ANIMA project. See `examples/` directory for:
+- `db68e01d-nyx.md` — Nyx identity entry (Entity, L5)
+- `6e267f26-硅基文明起源对话.md` — Origin dialogue event (Event, L5)
+- `5b40d0a9-mnea.md` — Mnea identity entry (Entity, L5)
+- `e911e13c-老板与mnea对话存档.md` — Dialogue archive (Artifact, L4)
 
 ## Entry Schema
 
@@ -183,25 +219,60 @@ knowledge-base/
 ### Phase 1: Seed Release (Current)
 - [x] CLI v1.2 — create, get, list, search, rag, rebuild
 - [x] Text search fallback for Windows
-- [x] 20 real entries in production use
-- [ ] Chroma vector search integration
-- [ ] Embedding model API integration
+- [x] 13 real entries in production use
+- [x] Owner & visibility fields (v1.3)
+- [x] End-to-end demo script (`examples/e2e_demo.py`)
+- [x] DeepSeek RAG integration (`rag_query.py`)
+- [ ] Chroma vector search integration (Windows-compatible)
+- [ ] Comparison experiment: pure model vs KB-enhanced answers
+- [ ] 1-min demo video
 
 ### Phase 2: v1.0 Stable
 - [ ] REST API for programmatic access
-- [ ] LLM-powered RAG answer generation
-- [ ] Multi-model RAG demo
+- [ ] Multi-model RAG adapter (DeepSeek, Doubao, OpenAI)
 - [ ] Relation traversal queries
+- [ ] Confidence time-decay automation
+- [ ] Progress article on 知乎
 
 ### Phase 3: Ecosystem
-- [ ] Web UI for non-technical users
-- [ ] Confidence time-decay automation
+- [ ] Web UI prototype (Streamlit/Flask)
+- [ ] Auto-sync: experiment summaries → Event entries
 - [ ] Export/import (JSON, CSV)
 - [ ] Plugin system for custom entry types
+- [ ] Memory value judgment automation
+- [ ] Forgetting mechanism standardization
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup and guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, guidelines, and how to add knowledge.
+
+### Quick: Add a New Knowledge Entry
+
+1. Use the CLI:
+```bash
+python kb.py create --name "Your Entry" --type Concept \
+    --description "One-line description" \
+    --owner silicon-civilization --visibility public
+```
+
+2. Or create a `.md` file manually in the appropriate directory (`concept/`, `entity/`, etc.) following the [schema](docs/schema.md).
+
+### Quick: Extend Relation Types
+
+Edit the `RELATION_TYPES` list in `kb.py` and update `docs/schema.md`. Current 10 types:
+
+| Type | Description |
+|------|-------------|
+| `定义的` | A defines B |
+| `提出者` | A proposed B |
+| `参与者` | A participated in B |
+| `产出` | A produced B |
+| `依赖` | A depends on B |
+| `基于` | A is based on B |
+| `序列` | A follows B in sequence |
+| `评价` | A evaluates B |
+| `实例化` | A is an instance of B |
+| `存储` | A is stored in B |
 
 ## License
 

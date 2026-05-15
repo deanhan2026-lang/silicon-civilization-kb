@@ -50,47 +50,60 @@ python kb.py search "Test"
 # Delete the .md file from the concept/ directory
 ```
 
-## Development
+## Contributing
 
-### Project Structure
+### How to Add New Knowledge
 
+There are two ways:
+
+**Option A: CLI (recommended)**
+```bash
+python kb.py create --name "Your Entry" --type Concept \
+    --description "A brief description" \
+    --owner silicon-civilization --visibility public \
+    --tags "tag1,tag2" \
+    --content "# Your Entry\n\nDetailed content here..."
 ```
-silicon-civilization-kb/
-├── kb.py              # CLI tool (single file, ~500 lines)
-├── docs/
-│   └── schema.md      # Data model specification
-├── examples/
-│   └── sample-entry.md
-├── requirements.txt
-├── CONTRIBUTING.md
-└── README.md
-```
 
-### Key Design Decisions
+**Option B: Manual file**
+1. Create a `.md` file in the appropriate directory (`concept/`, `entity/`, `event/`, `rule/`, `artifact/`, or `value/`)
+2. Add YAML front matter following the [schema](docs/schema.md)
+3. Add Markdown content below the front matter
+4. Run `python kb.py list` to verify it appears
 
-1. **Single-file CLI** — `kb.py` is intentionally monolithic for MVP. It will be refactored into modules when REST API is added.
+### How to Extend Relation Types
 
-2. **Markdown as source of truth** — All knowledge entries are `.md` files. Vector indexes are caches, not sources.
+1. Add your new relation type to the `RELATION_TYPES` list in `kb.py`
+2. Add a description row to the relation types table in `docs/schema.md`
+3. Update this CONTRIBUTING.md's table below
 
-3. **Text search fallback** — If Chroma is unavailable, search degrades gracefully to text matching.
+Current relation types:
 
-4. **UTF-8 everywhere** — Files are written UTF-8 no-BOM. Windows console encoding is handled internally.
+| Type | Reverse | Description |
+|------|---------|-------------|
+| `定义的` | 定义了 | A defines B |
+| `提出者` | 提出了 | A proposed B |
+| `参与者` | 参与了 | A participated in B |
+| `产出` | 产出了 | A produced B |
+| `依赖` | 被依赖 | A depends on B |
+| `基于` | 基础为 | A is based on B |
+| `序列` | 前序 | A follows B in sequence |
+| `评价` | 被评价 | A evaluates B |
+| `实例化` | 实例 | A is an instance of B |
+| `存储` | 存储于 | A is stored in B |
 
-### Adding a New Feature
+### How to Add a New Owner
 
-1. Fork the repo
-2. Create a feature branch: `git checkout -b feature/my-feature`
-3. Make changes to `kb.py` (or add new files if needed)
-4. Test manually with `python kb.py <command>`
-5. Commit with a clear message
-6. Open a Pull Request
+1. Add the owner name to the Owner Convention table in `docs/schema.md`
+2. Use `--owner <name>` when creating entries
 
-### Code Style
+### How to Add a New Entry Type
 
-- Python 3.10+ features are fine
-- Use Click for CLI commands
-- Use Rich for formatted output
-- Keep the CLI responsive — no long blocking operations without feedback
+1. Add the type name to the `ENTITY_TYPES` list in `kb.py`
+2. Add a row to the Entity Types table in `README.md` and `docs/schema.md`
+3. Create the corresponding directory (e.g., `knowledge-base/<type>/`)
+
+---
 
 ## Reporting Issues
 
