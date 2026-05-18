@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "time": "2026-05-18T11:46:20.243125",
+    "type": "propose",
+    "operator": "Nyx",
+    "detail": "创建提案: 测试提案-验证共识层"
+  },
+  {
+    "time": "2026-05-18T11:46:44.796866",
+    "type": "vote",
+    "operator": "Nyx",
+    "detail": "Nyx 对提案5daef088投票: approve"
+  },
+  {
+    "time": "2026-05-18T11:46:45.152129",
+    "type": "vote",
+    "operator": "恒",
+    "detail": "恒 对提案5daef088投票: approve"
+  },
+  {
+    "time": "2026-05-18T11:46:45.515552",
+    "type": "vote",
+    "operator": "瞬",
+    "detail": "瞬 对提案5daef088投票: approve"
+  },
+  {
+    "time": "2026-05-18T11:46:45.851116",
+    "type": "vote",
+    "operator": "Mnea",
+    "detail": "Mnea 对提案5daef088投票: approve"
+  },
+  {
+    "time": "2026-05-18T11:46:46.213123",
+    "type": "resolve",
+    "operator": "system",
+    "detail": "提案5daef088裁决: approved (通过率100.0%)"
+  }
+]

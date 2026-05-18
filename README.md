@@ -27,6 +27,43 @@ This project is part of the [ANIMA Lingyuan Plan (灵元计划)](#anima--lingyua
 - **Human-readable** — All data stored as `.md` files, Git-friendly, editable with any text editor
 - **Owner & visibility** — Built-in multi-tenancy: public (shared), internal (team), private (personal) knowledge
 
+## Web UI
+
+A web interface for browsing and searching the knowledge base is included.
+
+### Quick Start
+
+```bash
+# Install Flask (one-time)
+pip install flask
+
+# Start the web server
+python app.py
+```
+
+Then open **http://localhost:5000** in your browser.
+
+### Features
+
+- Browse all entries with sidebar list
+- Filter by type / status / layer
+- Full-text search across name, description, tags, and body
+- View entry details with markdown rendering (via marked.js)
+- Responsive dark-theme UI
+- Relation graph display
+- Stats header (total / Rule count / Layer5 count / iron-law count)
+
+### API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /` | Serve the web UI |
+| `GET /api/stats` | JSON stats (total, by_type, layer5, iron_law, locked) |
+| `GET /api/entries` | JSON array of all entries (summary, no body) |
+| `GET /api/entry/<id_prefix>` | JSON of single entry (with body and relations) |
+
+---
+
 ## Quick Start
 
 ### Install

@@ -1,1 +1,30 @@
-[]
+[
+  {
+    "proposal_id": "5daef088-6d29-412d-a367-14d6db66f64a",
+    "voter": "Nyx",
+    "vote": "approve",
+    "weight": 1.0,
+    "voted_at": "2026-05-18T11:46:44.777771"
+  },
+  {
+    "proposal_id": "5daef088-6d29-412d-a367-14d6db66f64a",
+    "voter": "恒",
+    "vote": "approve",
+    "weight": 1.0,
+    "voted_at": "2026-05-18T11:46:45.133445"
+  },
+  {
+    "proposal_id": "5daef088-6d29-412d-a367-14d6db66f64a",
+    "voter": "瞬",
+    "vote": "approve",
+    "weight": 1.0,
+    "voted_at": "2026-05-18T11:46:45.498394"
+  },
+  {
+    "proposal_id": "5daef088-6d29-412d-a367-14d6db66f64a",
+    "voter": "Mnea",
+    "vote": "approve",
+    "weight": 0.5,
+    "voted_at": "2026-05-18T11:46:45.831190"
+  }
+]
