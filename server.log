@@ -1,0 +1,28 @@
+[INFO] 治理解析器模块加载成功
+============================================================
+  硅基文明数据库 Web UI
+  Silicon Civilization KB - Web Interface
+============================================================
+
+[INFO] 已加载 4 条治理协议
+[INFO] 已解析 41 条规则
+[INFO] 治理解析器初始化完成
+  协议数: 11
+  规则数: 41
+  事件处理器: 17
+[INFO] 治理架构已加载
+  Knowledge Base: C:\Users\Administrator\.qclaw\workspace-agent-d9479bde\knowledge-base
+  Access URL:    http://localhost:5000
+  API Stats:      http://localhost:5000/api/stats
+  API Entries:    http://localhost:5000/api/entries
+  API Integrity:  http://localhost:5000/api/integrity/check
+  API Audit:      http://localhost:5000/api/audit/logs
+  API Security:   http://localhost:5000/api/security/check-path
+  API Gov Rules:  http://localhost:5000/api/gov/rules/list
+  API Gov Status: http://localhost:5000/api/gov/status
+  API Gov Verify: http://localhost:5000/api/gov/verify/event
+
+  Press Ctrl+C to stop
+============================================================
+ * Serving Flask app 'app'
+ * Debug mode: off

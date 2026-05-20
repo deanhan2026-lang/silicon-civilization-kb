@@ -1,0 +1,5 @@
+[2026-05-20 10:19:34] AUTH_DENIED ip=127.0.0.1 path=/api/intercom/send
+[2026-05-20 10:19:36] MSG_SENT sender=test file=msg_011_test.md
+[2026-05-20 10:20:45] MSG_SENT sender=nyx file=msg_011_nyx.md
+[2026-05-20 11:09:04] MSG_SENT sender=test file=msg_012_test.md
+[2026-05-20 11:12:08] MSG_SENT sender=test file=msg_012_test.md

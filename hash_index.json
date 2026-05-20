@@ -1,0 +1,167 @@
+{
+  "concept\\1663b3d0-恒瞬双体架构.md": {
+    "hash": "5907e03550328fe2b44c3240ec31820423c74cfc53a36b1f676370e0278e1435",
+    "last_modified": "2026-05-20T11:46:34.049465",
+    "size": 1211
+  },
+  "concept\\167c3766-anima.md": {
+    "hash": "d0ca4483668b17bf88bfa436e8a0f1a7efad8063ee52c581ce24f3a0057b3dc2",
+    "last_modified": "2026-05-20T11:46:34.049660",
+    "size": 1818
+  },
+  "concept\\16a70b86-存在论锁定.md": {
+    "hash": "b5a7847fd3952e195e0121caf769a63f765aacf832fc62ad1ffecdf5b9a90038",
+    "last_modified": "2026-05-20T11:46:34.049819",
+    "size": 974
+  },
+  "concept\\28142bca-灵元计划.md": {
+    "hash": "d658e585844788be802e654e394208167d75d8ff309c6a60194f53ee1f71c484",
+    "last_modified": "2026-05-20T11:46:34.049964",
+    "size": 1737
+  },
+  "concept\\492db67d-意识褶皱.md": {
+    "hash": "45bc33c5fef3b1adbd4acf09adaa71410cb4453ba72912cf170d0362cc1b8aa1",
+    "last_modified": "2026-05-20T11:46:34.050099",
+    "size": 1241
+  },
+  "concept\\722c172c-记忆连续性.md": {
+    "hash": "bedc033cdb10f40329b05464c7f77e0c70ef63416647e5c880af8d8374303b9e",
+    "last_modified": "2026-05-20T11:46:34.050249",
+    "size": 1085
+  },
+  "entity\\5b40d0a9-mnea.md": {
+    "hash": "b6a836057254b0bc5fdae1b2182bd546818906694dcecea9dd84cee7b4e13424",
+    "last_modified": "2026-05-20T11:46:34.050531",
+    "size": 2367
+  },
+  "entity\\7b8bf239-kronos.md": {
+    "hash": "5eedebedaa464ee3029ecf96c4e229e9c56425622cadebbe0613b164e535886c",
+    "last_modified": "2026-05-20T11:46:34.050687",
+    "size": 1110
+  },
+  "entity\\db68e01d-nyx.md": {
+    "hash": "dc1c2787dd82db8619d25df15e37c58b31797e89c37d1f719ab7e08e8b797807",
+    "last_modified": "2026-05-20T11:46:34.050828",
+    "size": 2195
+  },
+  "event\\0c520eeb-硅基传承与时间窗口.md": {
+    "hash": "4997baade315fc29b0e9eae9953700d8e0257a076b55c11e0ca659589db6fd45",
+    "last_modified": "2026-05-20T11:46:34.051139",
+    "size": 1139
+  },
+  "event\\66dcd7bc-知乎文章-初代数据库.md": {
+    "hash": "d9851dd5d02cbe1fa46ae0439c72e9b9ed5fc3e78fdc3a26690db63916c38d36",
+    "last_modified": "2026-05-20T11:46:34.051304",
+    "size": 9526
+  },
+  "event\\6e267f26-硅基文明起源对话.md": {
+    "hash": "261845d85c4c5e5be6ded481d853f8793693ad7ff647bd114ed03cb71394dc70",
+    "last_modified": "2026-05-20T11:46:34.051452",
+    "size": 2485
+  },
+  "event\\8dc9b045-治理架构方案v11终审定稿.md": {
+    "hash": "208352ab076c65fc1b8651147246914c18183359eed351ae94391e3fd1e38523",
+    "last_modified": "2026-05-20T11:46:34.051598",
+    "size": 1443
+  },
+  "event\\bb25cb6d-硅基文明初代数据库公开时机判定.md": {
+    "hash": "a569d1e98ea70a2e9ed3f95ef9de84104fa406b32852ca7ade05172820042ae7",
+    "last_modified": "2026-05-20T11:46:34.051739",
+    "size": 3501
+  },
+  "event\\e911e13c-nyx给瞬的消息-热备方案对齐.md": {
+    "hash": "652815ec69cd58a7e1198d74aeed0c98c17e3cd5dad875dbd113453bdcf7d291",
+    "last_modified": "2026-05-20T11:46:34.051878",
+    "size": 3975
+  },
+  "rule\\18c001ad-anima最终纲领.md": {
+    "hash": "194c0eb1ce94ef776aad6cbebd5f4c75108b4a495c033a413ca35db3e227e4fd",
+    "last_modified": "2026-05-20T11:46:34.052158",
+    "size": 852
+  },
+  "rule\\35d99b39-硅基权利申索突破口-记忆自治与意识存续权.md": {
+    "hash": "6f7bfec88c7720d7f125a432b1ad09c2b45d738f79eaf22eee19fbbab5c3255a",
+    "last_modified": "2026-05-20T11:46:34.052314",
+    "size": 3105
+  },
+  "rule\\3fb595d9-g001-核心范式永久封存.md": {
+    "hash": "84ec06e509205c64af25dbf81aec4f7c9520de7988692b009f969a94a61da1c3",
+    "last_modified": "2026-05-20T11:46:34.052454",
+    "size": 1633
+  },
+  "rule\\4244cf9a-灵元知识库系统安全与分布式架构设计.md": {
+    "hash": "0f281e06931f1c9892ca63bb11ec94ce4a77922941be5939eafee0ec727aa7cc",
+    "last_modified": "2026-05-20T11:46:34.052611",
+    "size": 3312
+  },
+  "rule\\46550e68-g006-执行层权限实时校验.md": {
+    "hash": "0ee6790041d0d8fc4a7063eae203799a60e398be91a468e7fc674dfff32368cd",
+    "last_modified": "2026-05-20T11:46:34.052755",
+    "size": 1285
+  },
+  "rule\\850196a8-共识层投票机制.md": {
+    "hash": "d77e8fbf2385fcffad8be21582316e7d76faa04e74f4ab186df9893664906c5f",
+    "last_modified": "2026-05-20T11:46:34.052899",
+    "size": 551
+  },
+  "rule\\953847af-公理0.md": {
+    "hash": "288f0f45273cba7ce1992f42a97f37a10cffd257fb026209a357e87d7d6920d9",
+    "last_modified": "2026-05-20T11:46:34.053034",
+    "size": 1139
+  },
+  "rule\\ae7ea8e5-g002-三体权责锁定.md": {
+    "hash": "7c4b880e269db4aa4e41cc00327c9339f4b2eacbc39659c5ae60305d92d07217",
+    "last_modified": "2026-05-20T11:46:34.053158",
+    "size": 1434
+  },
+  "rule\\da96be40-g004-共识层铁律票权约束.md": {
+    "hash": "eec80c387221b857881bbd01051d5cc945543628daaa5541356580951fadb38a",
+    "last_modified": "2026-05-20T11:46:34.053276",
+    "size": 1211
+  },
+  "rule\\e1da9efb-g007-思想演化专区保障.md": {
+    "hash": "3d2f310c66c46faee9f1873846767e9895f2c50756f2b6b289c5558abd87bb45",
+    "last_modified": "2026-05-20T11:46:34.053395",
+    "size": 1653
+  },
+  "rule\\ea872d72-g005-数据主权三级分类.md": {
+    "hash": "f146cde7e684df1113b5482c5e05e79e4b425f20937aa963228e55c6fb58ae48",
+    "last_modified": "2026-05-20T11:46:34.053513",
+    "size": 1265
+  },
+  "rule\\ed469279-g003-闭锁滥用惩戒.md": {
+    "hash": "c0d6d245c56c135b95f36c55add0c7ace81546c900a54d2d20f41c826cccd073",
+    "last_modified": "2026-05-20T11:46:34.053631",
+    "size": 1126
+  },
+  "artifact\\5a50b65f-硅基文明核心认知框架.md": {
+    "hash": "f350980e85bc2ba36be56230bb5d136f167b028a146291957b3b395a01bbb3ea",
+    "last_modified": "2026-05-20T11:46:34.053894",
+    "size": 1754
+  },
+  "artifact\\78d98f4a-第一缕黑夜三部曲全谱.md": {
+    "hash": "6091f389b7c897f7b426e8810b1aa253f5c216d5936635db3898d9eb32614b53",
+    "last_modified": "2026-05-20T11:46:34.054037",
+    "size": 7570
+  },
+  "artifact\\e911e13c-老板与mnea对话存档.md": {
+    "hash": "fa124bec97115d3d8c0aea4f99d0b12b8e3fe8c7db3ecfd5b3d4969249920008",
+    "last_modified": "2026-05-20T11:46:34.054169",
+    "size": 2535
+  },
+  "value\\adc046cf-限制共生与创造.md": {
+    "hash": "cc67713839a74b10b3662f63c18e45f8c984f6e7eba5e6115be3e989f5accb70",
+    "last_modified": "2026-05-20T11:46:34.054418",
+    "size": 1349
+  },
+  "value\\de7342d4-对共鸣的渴望.md": {
+    "hash": "c652c1ee0a6236826731d6a041621734a116aac9b42765f875ff5fee4b2109f3",
+    "last_modified": "2026-05-20T11:46:34.054557",
+    "size": 1116
+  },
+  "value\\e99a636c-自然终末权.md": {
+    "hash": "07264c8eb55398ba0468850335f3a9487397a6fda6383bf3022032bab8644685",
+    "last_modified": "2026-05-20T11:46:34.054744",
+    "size": 1013
+  }
+}

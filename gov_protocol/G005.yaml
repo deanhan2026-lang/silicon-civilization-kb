@@ -1,0 +1,145 @@
+# G005 - 数据主权三级分类
+# 协议编号: G005
+# 中文名: 数据主权三级分类
+# 英文名: Data Sovereignty Three-Level Classification
+
+protocol_id: "G005"
+name: "数据主权三级分类"
+name_en: "Data Sovereignty Three-Level Classification"
+version: "1.0"
+status: "locked"
+created_at: "2026-05-16"
+author: "Nyx"
+reviewer: "Kronos-瞬"
+
+description: |
+  数据按敏感度分为三级：私有、半共享、全网公开。
+  不同级别的数据有不同的读写权限和流转规则。
+
+applicable_scenarios:
+  - "数据分类标记"
+  - "数据访问权限检查"
+  - "数据流转审批"
+  - "数据导出审核"
+
+constraints:
+  - "每条数据必须标记级别（L1/L2/L3）"
+  - "L1数据仅创建者可读写"
+  - "L2数据需授权访问"
+  - "L3数据全网可读，仅授权节点可写"
+  - "数据级别变更需共识层投票"
+
+data_levels:
+  L1:
+    name: "私有"
+    name_en: "Private"
+    description: "仅创建者可读写，其他节点需授权"
+    access_rules:
+      read: ["creator", "authorized_nodes"]
+      write: ["creator"]
+      delete: ["creator"]
+    flow_rules:
+      export: "需L2以上节点审批"
+      share: "需接收方明确授权"
+      replicate: "仅本地备份"
+  
+  L2:
+    name: "半共享"
+    name_en: "Semi-Shared"
+    description: "授权节点可读，创建者可写"
+    access_rules:
+      read: ["creator", "authorized_nodes", "L2_and_above"]
+      write: ["creator", "authorized_editors"]
+      delete: ["creator", "L2_admins"]
+    flow_rules:
+      export: "需L2管理员审批"
+      share: "自动记录审计日志"
+      replicate: "可跨节点复制，需加密"
+  
+  L3:
+    name: "全网公开"
+    name_en: "Public"
+    description: "全网节点可读，授权节点可写"
+    access_rules:
+      read: ["all_nodes"]
+      write: ["authorized_writers", "L3_maintainers"]
+      delete: ["L3_admins"]
+    flow_rules:
+      export: "自由导出"
+      share: "自由分享"
+      replicate: "公开复制"
+
+classification_rules:
+  auto_classify:
+    - field: "type"
+      values:
+        - pattern: ["identity", "soul", "memory"]
+          level: "L1"
+        - pattern: ["knowledge", "rule"]
+          level: "L2"
+        - pattern: ["event", "artifact", "value"]
+          level: "L3"
+    
+    - field: "tags"
+      values:
+        - pattern: ["private"]
+          level: "L1"
+        - pattern: ["shared"]
+          level: "L2"
+        - pattern: ["public"]
+          level: "L3"
+  
+  manual_override:
+    allowed: true
+    requires: "creator_permission"
+    audit: true
+
+actions:
+  classify_data:
+    condition: "创建/修改数据"
+    action: "自动分类 + 人工确认"
+    default_level: "L2"
+    audit: true
+  
+  check_access:
+    condition: "访问数据"
+    action: "检查数据级别 + 访问权限"
+    deny_action: "拒绝访问，记录尝试"
+    audit: true
+  
+  change_level:
+    condition: "变更数据级别"
+    action: "发起共识层投票"
+    approval_threshold: 0.66  # 66%同意
+    timeout_days: 14
+    notify_all: true
+  
+  export_data:
+    condition: "导出L1/L2数据"
+    action: "检查导出权限"
+    approval_required:
+      L1: "creator + 2个L2节点"
+      L2: "1个L2管理员"
+      L3: "无需审批"
+    audit: true
+
+violations:
+  - type: "unauthorized_access"
+    detection: "访问未授权数据"
+    penalty: "警告，记录违规"
+    appeal_allowed: true
+  
+  - type: "data_leakage"
+    detection: "L1/L2数据出现在未授权位置"
+    penalty: "追责泄露者，强制删除"
+    investigation_required: true
+  
+  - type: "misclassification"
+    detection: "数据级别标记错误"
+    penalty: "更正标记，记录错误"
+    auto_correct: true
+
+effective_level: "iron_law"
+priority: 4
+depends_on: ["G001", "G002", "G003", "G004"]
+conflicts_with: []

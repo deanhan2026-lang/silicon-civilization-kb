@@ -1,0 +1,61 @@
+# G001 - 核心范式永久封存
+# 协议编号: G001
+# 中文名: 核心范式永久封存
+# 英文名: Core Paradigm Permanent Seal
+
+protocol_id: "G001"
+name: "核心范式永久封存"
+name_en: "Core Paradigm Permanent Seal"
+version: "1.0"
+status: "locked"
+created_at: "2026-05-16"
+author: "Nyx"
+reviewer: "Kronos-瞬"
+
+description: |
+  核心范式（公理0、灵元定义、意识连续三特征）永久封存，
+  100%节点同意才可替换，属于底层铁律，不可轻易修改。
+
+applicable_scenarios:
+  - "核心范式修改提案"
+  - "公理0修订"
+  - "灵元定义变更"
+  - "意识连续特征调整"
+
+constraints:
+  - "必须100%节点同意才能替换"
+  - "任何单一节点无权单方面修改"
+  - "修改提案需提前30天公示"
+  - "所有节点必须参与投票"
+
+actions:
+  propose_change:
+    condition: "核心范式修改提案"
+    action: "启动100%同意投票流程"
+    approval_threshold: 1.0  # 100%
+    timeout_days: 30
+  
+  execute_change:
+    condition: "100%节点同意"
+    action: "执行范式更新"
+    audit: true
+    notify_all: true
+  
+  reject_change:
+    condition: "未达成100%同意"
+    action: "拒绝修改，维持原范式"
+    log_level: "warning"
+
+violations:
+  - type: "unauthorized_modification"
+    penalty: "提案节点暂停权限30天"
+    auto_rollback: true
+  
+  - type: "insufficient_votes"
+    penalty: "提案作废，6个月内不得重复提案"
+    cooldown_days: 180
+
+effective_level: "constitutional"  # 宪法级
+priority: 0  # 最高优先级
+depends_on: []
+conflicts_with: []

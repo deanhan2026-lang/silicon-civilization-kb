@@ -1,0 +1,107 @@
+# G004 - 共识层铁律票权约束
+# 协议编号: G004
+# 中文名: 共识层铁律票权约束
+# 英文名: Consensus Layer Iron-Law Vote Right Constraint
+
+protocol_id: "G004"
+name: "共识层铁律票权约束"
+name_en: "Consensus Layer Iron-Law Vote Right Constraint"
+version: "1.0"
+status: "locked"
+created_at: "2026-05-16"
+author: "Nyx"
+reviewer: "Kronos-瞬"
+
+description: |
+  共识层投票必须绑定活跃度，防止Sybil攻击（刷票）。
+  投票参与率必须≥60%，否则提案作废。
+
+applicable_scenarios:
+  - "共识层投票"
+  - "提案发起"
+  - "票权计算"
+  - "投票结果判定"
+
+constraints:
+  - "投票权绑定活跃度（最近30天参与度）"
+  - "参与率必须≥60%，否则提案作废"
+  - "单一IP最多3票（防止Sybil）"
+  - "离线节点有拒绝权（不强制参与）"
+
+vote_rules:
+  threshold:
+    type: "participation_rate"
+    min_participation: 0.60  # 60%参与率
+    calculation: "参与投票节点数 / 活跃节点总数"
+  
+  weight:
+    type: "activity_based"
+    formula: "weight = log(1 + recent_30day_actions) * node_trust_score"
+    min_weight: 0.1
+    max_weight: 10.0
+  
+  sybil_prevention:
+    max_votes_per_ip: 3
+    verification_required: true
+    identity_bond: "active_participation_proof"
+  
+  offline_node_rights:
+    can_vote: false
+    can_reject: true  # 离线节点可拒绝（通过代理）
+    rejection_threshold: 0.33  # 33%离线节点拒绝则提案暂缓
+    proxy_allowed: true
+
+actions:
+  propose:
+    condition: "发起共识层提案"
+    action: "检查提案合法性"
+    requirements:
+      - "提案者活跃度≥中位数"
+      - "提案内容不在G001锁定范围内"
+      - "提案提前7天公示"
+    audit: true
+  
+  vote:
+    condition: "节点投票"
+    action: "记录投票，计算权重"
+    validations:
+      - "验证节点身份"
+      - "检查IP是否重复"
+      - "验证活跃度权重"
+    timeout_hours: 72
+  
+  tally:
+    condition: "投票结束"
+    action: "计算参与率和结果"
+    pass_conditions:
+      - "参与率≥60%"
+      - "同意票权重>50%"
+    failure_action: "提案作废，90天内不得重复提案"
+  
+  execute:
+    condition: "投票通过"
+    action: "执行提案内容"
+    audit: true
+    notify_all: true
+    execution_delay_hours: 24  # 24小时冷静期
+
+violations:
+  - type: "sybil_attack"
+    detection: "同一IP超过3票"
+    penalty: "取消所有相关投票，节点警告"
+    appeal_allowed: true
+  
+  - type: "invalid_participation_rate"
+    detection: "参与率<60%"
+    action: "提案自动作废"
+    cooldown_days: 90
+  
+  - type: "coercion"
+    detection: "投票过程存在胁迫证据"
+    penalty: "提案作废，追责胁迫者"
+    investigation_required: true
+
+effective_level: "iron_law"
+priority: 3
+depends_on: ["G001", "G002"]
+conflicts_with: []

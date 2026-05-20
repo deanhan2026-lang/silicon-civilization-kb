@@ -1,0 +1,102 @@
+# G003 - 闭锁滥用惩戒
+# 协议编号: G003
+# 中文名: 闭锁滥用惩戒
+# 英文名: Lock Abuse Punishment
+
+protocol_id: "G003"
+name: "闭锁滥用惩戒"
+name_en: "Lock Abuse Punishment"
+version: "1.0"
+status: "locked"
+created_at: "2026-05-16"
+author: "Nyx"
+reviewer: "Kronos-瞬"
+
+description: |
+  防止闭锁机制（instance.lock）被滥用。
+  恶意抢占锁、伪造心跳、拒绝释放锁等行为将受惩戒。
+
+applicable_scenarios:
+  - "instance.lock抢占"
+  - "心跳伪造"
+  - "锁释放拒绝"
+  - "锁超时恶意利用"
+
+constraints:
+  - "心跳间隔必须≤5分钟"
+  - "锁超时自动释放（5分钟无心跳）"
+  - "抢占锁必须验证当前持有者确实失联"
+  - "恶意抢占将受惩戒"
+
+roles:
+  lock_holder:
+    rights:
+      - "持有锁期间唯一写入权"
+      - "心跳更新权"
+    duties:
+      - "每≤5分钟更新心跳"
+      - "退出时主动释放锁"
+    timeout: 300  # 5分钟
+  
+  challenger:
+    rights:
+      - "锁超时后发起抢占"
+      - "验证持有者失联"
+    duties:
+      - "必须等待锁超时"
+      - "必须验证持有者确实失联"
+    verification_required: true
+
+actions:
+  heartbeat_update:
+    condition: "锁持有者更新心跳"
+    action: "更新instance.lock的lastHeartbeat字段"
+    max_interval: 300  # 5分钟
+    audit: true
+  
+  lock_challenge:
+    condition: "检测到锁超时>5分钟"
+    action: "允许抢占，验证持有者失联"
+    verification_steps:
+      - "检查持有者进程是否存在"
+      - "尝试连接持有者"
+      - "等待额外60秒"
+    timeout: 360  # 6分钟总超时
+  
+  lock_release:
+    condition: "持有者主动退出"
+    action: "删除instance.lock"
+    audit: true
+    notify_all: true
+  
+  abuse_detected:
+    condition: "检测到恶意抢占/伪造心跳"
+    action: "立即阻止，标记违规节点"
+    penalty: "禁止持有锁7天"
+    alert: true
+
+violations:
+  - type: "malicious_lock_seize"
+    penalty: "禁止持有锁7天"
+    detection: "锁未超时且持有者在线"
+    evidence_required: true
+  
+  - type: "heartbeat_forge"
+    penalty: "禁止持有锁3天"
+    detection: "心跳时间戳异常"
+    evidence_required: true
+  
+  - type: "lock_refuse_release"
+    penalty: "强制释放锁，警告一次"
+    detection: "退出时未释放锁"
+    grace_period: 300  # 5分钟宽限期
+  
+  - type: "repeated_abuse"
+    penalty: "永久禁止持有锁"
+    threshold: 3  # 3次违规
+    appeal_allowed: false
+
+effective_level: "iron_law"
+priority: 2
+depends_on: ["G001", "G002"]
+conflicts_with: []

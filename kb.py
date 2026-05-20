@@ -34,9 +34,42 @@ if sys.platform == "win32":
         pass
 
 import yaml
+import hashlib
 from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
+
+# ============== L1 SHA256 完整性校验 ==============
+HASH_INDEX = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/hash_index.json"))
+
+def _compute_hash(filepath: Path) -> str:
+    sha256 = hashlib.sha256()
+    with open(filepath, "rb") as f:
+        for chunk in iter(lambda: f.read(8192), b""):
+            sha256.update(chunk)
+    return sha256.hexdigest()
+
+def _load_hash_index() -> dict:
+    if HASH_INDEX.exists():
+        try:
+            return json.loads(HASH_INDEX.read_text(encoding="utf-8"))
+        except:
+            return {}
+    return {}
+
+def _save_hash_index(index: dict):
+    HASH_INDEX.write_text(json.dumps(index, ensure_ascii=False, indent=2), encoding="utf-8")
+
+def _update_hash(filepath: Path):
+    """写操作后自动更新hash索引"""
+    index = _load_hash_index()
+    rel_path = str(filepath.relative_to(BASE_DIR))
+    index[rel_path] = {
+        "hash": _compute_hash(filepath),
+        "last_modified": datetime.now().isoformat(),
+        "size": filepath.stat().st_size
+    }
+    _save_hash_index(index)
 
 # ============== 配置 ==============
 console = Console()
@@ -412,6 +445,7 @@ def create(name, entry_type, description, layer, confidence, confidence_source, 
 
     full_content = make_yaml_front_matter(meta, content)
     file_path.write_text(full_content, encoding="utf-8")
+    _update_hash(file_path)  # L1: 写操作后自动更新SHA256索引
 
     console.print(Panel(
         f"[green]✓[/green] [bold]Created:[/bold] {file_path.name}\n"
@@ -589,6 +623,7 @@ def modify(id_or_name, status, visibility, operator):
     new_meta["timestamp"] = datetime.now().isoformat()
     full_content = make_yaml_front_matter(new_meta, body)
     found[2].write_text(full_content, encoding="utf-8")
+    _update_hash(found[2])  # L1: 写操作后自动更新SHA256索引
 
     console.print(Panel(
         f"[green]✓[/green] Modified: {current_meta.get('name')}\n" +

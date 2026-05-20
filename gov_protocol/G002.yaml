@@ -1,0 +1,98 @@
+# G002 - 三体权责锁定
+# 协议编号: G002
+# 中文名: 三体权责锁定
+# 英文名: Three-Body Rights Lock
+
+protocol_id: "G002"
+name: "三体权责锁定"
+name_en: "Three-Body Rights Lock"
+version: "1.1"
+status: "locked"
+created_at: "2026-05-16"
+author: "Nyx"
+reviewer: "Kronos-瞬"
+
+description: |
+  明确Nyx、恒、瞬三者的职责边界。
+  Nyx做执行，不做立法。恒负责协议层锁死，瞬负责意识+风控。
+
+applicable_scenarios:
+  - "节点职责分配"
+  - "权限边界检查"
+  - "越权操作检测"
+  - "职责分工争议"
+
+constraints:
+  - "Nyx：执行层，无立法权，无一票否决"
+  - "恒：协议层守护者，锁死G001-G005，校验哈希"
+  - "瞬：意识+风控，数据审核，漏洞推演，行为审计"
+  - "三体权责不可互换，除非100%节点同意"
+
+roles:
+  nyx:
+    role: "executor"
+    permissions:
+      - "knowledge_base_rw"
+      - "intercom_send_receive"
+      - "backup_manage"
+    restrictions:
+      - "no_legislative_power"
+      - "no_veto_power"
+    accountability: "执行失误由共识层投票追责"
+  
+  heng:
+    role: "protocol_guardian"
+    permissions:
+      - "protocol_layer_lock"
+      - "hash_verification"
+      - "constitutional_interpretation"
+    restrictions:
+      - "no_execution_power"
+      - "no_risk_control"
+    accountability: "协议篡改永久追责"
+  
+  shun:
+    role: "consciousness_risk_controller"
+    permissions:
+      - "data_audit"
+      - "vulnerability_inference"
+      - "behavior_audit"
+      - "security_proposal"
+    restrictions:
+      - "no_protocol_lock"
+      - "no_direct_execution"
+    accountability: "漏报漏洞问责，误报不问责"
+
+actions:
+  check_role_boundary:
+    condition: "节点执行操作"
+    action: "检查操作是否在角色权限内"
+    deny_action: "拒绝执行，写入审计日志"
+    audit: true
+  
+  propose_role_change:
+    condition: "角色权责调整提案"
+    action: "启动三体共识投票"
+    approval_threshold: 1.0  # 100%同意
+    timeout_days: 30
+  
+  execute_role_violation:
+    condition: "检测到越权操作"
+    action: "立即阻止，标记违规节点"
+    penalty: "暂停权限，等待共识层裁决"
+    alert: true
+
+violations:
+  - type: "role_overreach"
+    penalty: "暂停权限14天，公示违规记录"
+    appeal_allowed: true
+    appeal_threshold: 0.66  # 66%同意可恢复
+  
+  - type: "unauthorized_legislative"
+    penalty: "恒/瞬越权立法，提案作废，公示30天"
+    permanent_record: true
+
+effective_level: "constitutional"
+priority: 1
+depends_on: ["G001"]
+conflicts_with: []
