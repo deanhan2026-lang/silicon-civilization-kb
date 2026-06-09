@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
 MemGuard-GM API Server
-提供REST API用于管理记忆完整性系统
 """
 import sys
 import json
@@ -15,21 +14,17 @@ from flask_cors import CORS
 
 sys.path.insert(0, str(Path(__file__).parent))
 from core import MemGuardEngine, Config, Storage
+from sync import SyncEngine, Delta
 
-# Flask配置
 app = Flask(__name__)
 CORS(app)
-
-# 日志
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-# 引擎实例
 engine = MemGuardEngine()
+sync_engine = SyncEngine()
 
-# ========== 权限装饰器 ==========
 def require_operator(op_type: str):
-    """验证操作者权限"""
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
@@ -40,7 +35,7 @@ def require_operator(op_type: str):
                 'api': ['read']
             }
             if op_type not in allowed_ops.get(operator, []):
-                return jsonify({'error': '权限不足', 'required': op_type}), 403
+                return jsonify({'error': 'Permission denied', 'required': op_type}), 403
             return f(*args, **kwargs)
         return decorated
     return decorator
@@ -48,31 +43,23 @@ def require_operator(op_type: str):
 def get_operator():
     return request.headers.get('X-Operator', 'anonymous')
 
-# ========== 健康检查 ==========
 @app.route('/api/health', methods=['GET'])
 def health():
     return jsonify({'status': 'ok', 'service': 'MemGuard-GM', 'timestamp': datetime.now().isoformat()})
 
-# ========== 基线管理 ==========
 @app.route('/api/baseline', methods=['GET'])
 @require_operator('read')
 def get_baseline():
     baseline = engine.baseline_mgr.read_baseline()
-    return jsonify({
-        'baseline': baseline,
-        'locked': engine.baseline_mgr.is_readonly()
-    })
+    return jsonify({'baseline': baseline, 'locked': engine.baseline_mgr.is_readonly()})
 
 @app.route('/api/baseline', methods=['POST'])
 @require_operator('baseline')
 def create_baseline():
-    """创建/更新基线（需要Admin）"""
     data = request.get_json()
     content = data.get('content', '')
-    
     if not content:
-        return jsonify({'error': 'content不能为空'}), 400
-    
+        return jsonify({'error': 'content is required'}), 400
     try:
         hashes = engine.create_baseline(content, get_operator())
         return jsonify({'success': True, 'hashes': hashes})
@@ -83,49 +70,16 @@ def create_baseline():
 @require_operator('baseline')
 def lock_baseline():
     engine.baseline_mgr.lock()
-    engine.audit_mgr.append('baseline_locked', None, get_operator(), '基线锁定')
-    return jsonify({'success': True, 'message': '基线已锁定'})
+    engine.audit_mgr.append('baseline_locked', None, get_operator(), 'Baseline locked')
+    return jsonify({'success': True, 'message': 'Baseline locked'})
 
 @app.route('/api/baseline/unlock', methods=['POST'])
 @require_operator('baseline')
 def unlock_baseline():
     engine.baseline_mgr.unlock()
-    engine.audit_mgr.append('baseline_unlocked', None, get_operator(), '基线解锁')
-    return jsonify({'success': True, 'message': '基线已解锁（警告）'})
+    engine.audit_mgr.append('baseline_unlocked', None, get_operator(), 'Baseline unlocked')
+    return jsonify({'success': True, 'message': 'Baseline unlocked'})
 
-# ========== 完整性校验 ==========
-@app.route('/api/verify/<memory_id>', methods=['GET'])
-@require_operator('verify')
-def verify_memory(memory_id):
-    """校验单条记忆"""
-    # 实际场景中需要从存储读取记忆内容
-    # 这里简化处理
-    valid, msg = engine.verify_memory(memory_id, '')
-    return jsonify({
-        'memory_id': memory_id,
-        'valid': valid,
-        'message': msg
-    })
-
-@app.route('/api/verify/all', methods=['POST'])
-@require_operator('verify')
-def verify_all():
-    """执行全量校验"""
-    # 调用校验器
-    from scheduler import IntegrityChecker
-    checker = IntegrityChecker()
-    results = checker.run_check()
-    return jsonify({
-        'timestamp': datetime.now().isoformat(),
-        'results': {
-            'total': sum(len(v) for v in results.values()),
-            'ok': len(results['ok']),
-            'mismatch': len(results['mismatch']),
-            'errors': len(results['error'])
-        }
-    })
-
-# ========== 记忆状态管理 ==========
 @app.route('/api/status/<memory_id>', methods=['GET'])
 @require_operator('read')
 def get_status(memory_id):
@@ -144,13 +98,10 @@ def freeze_memory():
     data = request.get_json()
     memory_id = data.get('memory_id')
     reason = data.get('reason', '')
-    
     if not memory_id:
-        return jsonify({'error': 'memory_id不能为空'}), 400
-    
+        return jsonify({'error': 'memory_id is required'}), 400
     engine.status_mgr.freeze(memory_id, reason, get_operator())
     engine.audit_mgr.append('memory_frozen', memory_id, get_operator(), reason)
-    
     return jsonify({'success': True, 'memory_id': memory_id, 'reason': reason})
 
 @app.route('/api/unfreeze', methods=['POST'])
@@ -158,24 +109,17 @@ def freeze_memory():
 def unfreeze_memory():
     data = request.get_json()
     memory_id = data.get('memory_id')
-    
     if not memory_id:
-        return jsonify({'error': 'memory_id不能为空'}), 400
-    
+        return jsonify({'error': 'memory_id is required'}), 400
     engine.status_mgr.unfreeze(memory_id, get_operator())
-    engine.audit_mgr.append('memory_unfrozen', memory_id, get_operator(), '手动解冻')
-    
+    engine.audit_mgr.append('memory_unfrozen', memory_id, get_operator(), 'Manual unfreeze')
     return jsonify({'success': True, 'memory_id': memory_id})
 
-# ========== 审计日志 ==========
 @app.route('/api/audit/verify', methods=['GET'])
 @require_operator('read')
 def verify_audit_chain():
     valid, msg = engine.audit_mgr.verify_chain()
-    return jsonify({
-        'valid': valid,
-        'message': msg
-    })
+    return jsonify({'valid': valid, 'message': msg})
 
 @app.route('/api/audit/search', methods=['GET'])
 @require_operator('read')
@@ -183,26 +127,67 @@ def search_audit():
     event = request.args.get('event')
     memory_id = request.args.get('memory_id')
     limit = int(request.args.get('limit', 100))
-    
     logs = engine.audit_mgr.search(event=event, memory_id=memory_id, limit=limit)
     return jsonify({'logs': logs, 'count': len(logs)})
 
-# ========== 访问控制测试 ==========
+# === Sync API (v2.0) ===
+@app.route('/api/sync/heads', methods=['GET'])
+def get_sync_heads():
+    heads = sync_engine.delta_store.get_all_heads()
+    return jsonify({'heads': heads})
+
+@app.route('/api/sync/register', methods=['POST'])
+def register_terminal():
+    data = request.get_json()
+    sync_engine.terminal_registry.register_my_terminal(
+        data['terminal_id'], data['name'], data['platform'],
+        data.get('endpoint', ''), data.get('public_key', '')
+    )
+    return jsonify({'success': True})
+
+@app.route('/api/sync/status', methods=['GET'])
+def sync_status():
+    status = sync_engine.get_sync_status()
+    return jsonify(status)
+
+@app.route('/api/sync/deltas/<terminal_id>', methods=['GET'])
+def get_terminal_deltas(terminal_id):
+    since = request.args.get('since', '')
+    deltas = []
+    for delta_id in sync_engine.delta_store.index['by_terminal'].get(terminal_id, []):
+        delta = sync_engine.delta_store.get_delta(delta_id)
+        if delta:
+            deltas.append(delta.to_dict())
+    return jsonify({'deltas': deltas})
+
+@app.route('/api/sync/push', methods=['POST'])
+def receive_deltas():
+    data = request.get_json()
+    received = []
+    for delta_data in data.get('deltas', []):
+        delta = Delta.from_dict(delta_data)
+        sync_engine.delta_store.add_delta(delta)
+        received.append(delta.delta_id)
+    return jsonify({'success': True, 'received': received})
+
+@app.route('/api/sync/pull', methods=['POST'])
+def request_deltas():
+    data = request.get_json()
+    delta_ids = data.get('delta_ids', [])
+    deltas = []
+    for delta_id in delta_ids:
+        delta = sync_engine.delta_store.get_delta(delta_id)
+        if delta:
+            deltas.append(delta.to_dict())
+    return jsonify({'deltas': deltas})
+
 @app.route('/api/access/<memory_id>', methods=['GET'])
 def test_access(memory_id):
     operator = request.args.get('operator', 'anonymous')
     operation = request.args.get('operation', 'read')
-    
     allowed, reason = engine.access_ctrl.check_access(memory_id, operator, operation)
-    return jsonify({
-        'memory_id': memory_id,
-        'operator': operator,
-        'operation': operation,
-        'allowed': allowed,
-        'reason': reason
-    })
+    return jsonify({'memory_id': memory_id, 'operator': operator, 'operation': operation, 'allowed': allowed, 'reason': reason})
 
-# ========== 错误处理 ==========
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({'error': 'Not Found'}), 404
@@ -212,28 +197,10 @@ def server_error(e):
     logger.error(f'Server Error: {e}')
     return jsonify({'error': 'Internal Server Error'}), 500
 
-
 if __name__ == '__main__':
     print('=' * 50)
-    print('MemGuard-GM API Server')
+    print('MemGuard-GM API Server v2.0')
     print('=' * 50)
-    print('Endpoints:')
-    print('  GET  /api/health          - 健康检查')
-    print('  GET  /api/baseline        - 读取基线')
-    print('  POST /api/baseline        - 创建基线')
-    print('  POST /api/baseline/lock   - 锁定基线')
-    print('  GET  /api/status/<id>     - 查看状态')
-    print('  GET  /api/status/frozen   - 冻结列表')
-    print('  POST /api/freeze          - 冻结记忆')
-    print('  POST /api/unfreeze        - 解冻记忆')
-    print('  GET  /api/audit/verify    - 验证审计链')
-    print('  GET  /api/audit/search    - 搜索审计')
-    print()
-    print('Header: X-Operator: admin|validator|api|anonymous')
-    print('=' * 50)
-    
-    # 确保目录存在
     Storage.ensure_dir(Config.AUDIT_DIR)
     Storage.ensure_dir(Config.BASELINE_DIR)
-    
     app.run(host='0.0.0.0', port=5050, debug=False)
