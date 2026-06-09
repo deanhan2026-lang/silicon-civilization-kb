@@ -1,0 +1,32 @@
+# MemGuard-GM runtime files
+# These should not be committed
+
+# Baseline storage (contains sensitive data)
+memguard_baseline/
+
+# Audit logs (runtime generated)
+audit/
+
+# Memory files (runtime generated)
+memory/
+
+# Backup files (runtime generated)
+backup/
+
+# Logs
+*.log
+
+# Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+Thumbs.db
