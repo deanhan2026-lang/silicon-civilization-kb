@@ -102,11 +102,11 @@ class KBCryptoManager:
         
         # 确定输出路径
         if output_path is None:
-            # 去掉 .encrypted 扩展名，恢复到原位置
-            if encrypted_path.endswith(KBCryptoConfig.ENCRYPT_EXT):
-                output_path = encrypted_path[:-len(KBCryptoConfig.ENCRYPT_EXT)]
-            else:
-                output_path = encrypted_path + ".decrypted"
+            # 从 ENCRYPTED_DIR 映射回 KB_DIR
+            rel_path = os.path.relpath(encrypted_path, CryptoConfig.ENCRYPTED_DIR)
+            if rel_path.endswith(KBCryptoConfig.ENCRYPT_EXT):
+                rel_path = rel_path[:-len(KBCryptoConfig.ENCRYPT_EXT)]
+            output_path = os.path.join(self.kb_dir, rel_path)
         
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
