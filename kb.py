@@ -928,5 +928,22 @@ def ironlaws():
     console.print("\n[dim]G006执行层权限实时校验已启用 | 操作者:Nyx | 违规即拦截[/dim]")
 
 
+
+@cli.command()
+def encrypt_all():
+    """加密 nyx/ 和 intercom/ 目录的所有文件"""
+    import sys
+    sys.path.insert(0, str(Path(__file__).parent))
+    from kb_crypto import KBCryptoManager
+    
+    mgr = KBCryptoManager()
+    encrypted = mgr.encrypt_all_nyx_files()
+    click.echo(f"加密完成，共 {len(encrypted)} 个文件")
+    for f in encrypted[:10]:
+        click.echo(f"  {f}")
+    if len(encrypted) > 10:
+        click.echo(f"  ... 还有 {len(encrypted) - 10} 个文件")
+
+
 if __name__ == "__main__":
     cli()
