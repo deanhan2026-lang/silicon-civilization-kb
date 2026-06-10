@@ -257,6 +257,75 @@ def freeze_memory(**kwargs):
     engine.audit_mgr.append('memory_frozen', memory_id, node_id, reason)
     return jsonify({'success': True, 'memory_id': memory_id, 'reason': reason})
 
+# ========== 完整性验证 API ==========
+
+@app.route('/api/integrity/sign', methods=['POST'])
+@require_auth(PermissionLevel.ADMIN)
+def sign_core_files(**kwargs):
+    """签名所有核心文件"""
+    try:
+        from integrity import SignatureManager
+        sm = SignatureManager()
+        node_id = kwargs.get('_node_id', 'admin')
+        session_id = kwargs.get('_session_id')
+        results = sm.sign_all_core_files(node_id, session_id)
+        return jsonify({
+            'success': True,
+            'signed_count': len(results),
+            'files': [{'filename': s.filename, 'sha256': s.sha256[:16]+'...', 'timestamp': s.timestamp} for s in results]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/integrity/verify', methods=['GET'])
+@require_auth(PermissionLevel.READONLY, PermissionLevel.EDITOR, PermissionLevel.ADMIN)
+def verify_core_files(**kwargs):
+    """验证所有核心文件完整性"""
+    try:
+        from integrity import SignatureManager, TrustDomainChecker
+        sm = SignatureManager()
+        results, tamper_records = sm.verify_all_core_files()
+        return jsonify({
+            'trust_domain': TrustDomainChecker.get_trust_level(),
+            'total': len(results),
+            'valid': sum(1 for v, _ in results.values() if v),
+            'invalid': sum(1 for v, _ in results.values() if not v),
+            'details': {k: {'valid': v, 'status': s} for k, (v, s) in results.items()},
+            'alerts': [{'filename': r.filename, 'type': r.detection_type, 'severity': r.severity, 'timestamp': r.timestamp} for r in tamper_records]
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/integrity/status', methods=['GET'])
+@require_auth(PermissionLevel.READONLY, PermissionLevel.EDITOR, PermissionLevel.ADMIN)
+def get_integrity_status_api(**kwargs):
+    """获取完整性状态概览"""
+    try:
+        from integrity import get_integrity_status
+        return jsonify(get_integrity_status())
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/integrity/tamper_log', methods=['GET'])
+@require_auth(PermissionLevel.READONLY, PermissionLevel.EDITOR, PermissionLevel.ADMIN)
+def get_tamper_log(**kwargs):
+    """获取篡改日志"""
+    try:
+        import os
+        from integrity import IntegrityConfig
+        if not os.path.exists(IntegrityConfig.TAMPER_LOG):
+            return jsonify({'records': [], 'count': 0})
+        
+        records = []
+        with open(IntegrityConfig.TAMPER_LOG, 'r', encoding='utf-8') as f:
+            for line in f:
+                if line.strip():
+                    records.append(json.loads(line))
+        
+        return jsonify({'records': records[-100:], 'count': len(records)})  # 最近100条
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/unfreeze', methods=['POST'])
 @require_auth(PermissionLevel.ADMIN)
 def unfreeze_memory(**kwargs):
@@ -353,8 +422,23 @@ def server_error(e):
 
 if __name__ == '__main__':
     print('=' * 50)
-    print('MemGuard-GM API Server v2.0')
+    print('MemGuard-GM API Server v2.1')
     print('=' * 50)
     Storage.ensure_dir(Config.AUDIT_DIR)
     Storage.ensure_dir(Config.BASELINE_DIR)
+    
+    # 启动时验证核心文件完整性
+    try:
+        from integrity import SignatureManager
+        sm = SignatureManager()
+        results, tamper_records = sm.verify_all_core_files()
+        if tamper_records:
+            print(f'⚠️ 检测到 {len(tamper_records)} 个文件篡改警告')
+            for r in tamper_records:
+                print(f'  {r.filename}: {r.detection_type}')
+        else:
+            print(f'✅ 核心文件完整性验证通过 ({len(results)} 个文件)')
+    except Exception as e:
+        print(f'⚠️ 完整性验证失败: {e}')
+    
     app.run(host='0.0.0.0', port=5050, debug=False)
