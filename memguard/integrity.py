@@ -14,15 +14,24 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 
 # ========== 配置 ==========
+# Repo根目录（自动定位，跨平台）
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+
 class IntegrityConfig:
-    """完整性配置"""
-    # 签名存储路径
-    SIGNATURES_DIR = r"Z:\qclaw\memguard_signatures"
+    """完整性配置（支持环境变量覆盖）"""
+    # 签名存储路径（默认 repo/data/signatures/，可用 MEMGUARD_SIG_DIR 覆盖）
+    SIGNATURES_DIR = os.environ.get(
+        "MEMGUARD_SIG_DIR",
+        str(REPO_ROOT / "data" / "signatures")
+    )
     SIGNATURES_FILE = os.path.join(SIGNATURES_DIR, "signatures.json")
     TAMPER_LOG = os.path.join(SIGNATURES_DIR, "tamper_log.jsonl")
     
-    # 密钥文件（HMAC签名用）
-    SIGNING_KEY_FILE = r"Z:\qclaw\memguard_keys\signing_key.bin"
+    # 密钥文件（HMAC签名用，可用 MEMGUARD_SIGNING_KEY 覆盖）
+    SIGNING_KEY_FILE = os.environ.get(
+        "MEMGUARD_SIGNING_KEY",
+        str(REPO_ROOT / "data" / "keys" / "signing_key.bin")
+    )
     
     # 核心文件列表
     CORE_FILES = [
@@ -34,8 +43,11 @@ class IntegrityConfig:
         "TOOLS.md"
     ]
     
-    # Workspace路径
-    WORKSPACE_DIR = r"C:\Users\Administrator\.qclaw\workspace-agent-d9479bde"
+    # Workspace路径（可用 MEMGUARD_WORKSPACE 覆盖，默认从签名目录推导）
+    WORKSPACE_DIR = os.environ.get(
+        "MEMGUARD_WORKSPACE",
+        str(REPO_ROOT / "workspace")
+    )
 
 # ========== 数据结构 ==========
 @dataclass

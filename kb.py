@@ -40,7 +40,8 @@ from rich.table import Table
 from rich.panel import Panel
 
 # ============== L1 SHA256 完整性校验 ==============
-HASH_INDEX = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/hash_index.json"))
+REPO_ROOT = Path(__file__).parent.resolve()
+HASH_INDEX = REPO_ROOT / "hash_index.json"
 
 def _compute_hash(filepath: Path) -> str:
     sha256 = hashlib.sha256()

@@ -2,16 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 integrity_check.py - 知识库完整性定时检查脚本
-
-用途：每小时运行，检查所有知识库文件SHA256是否被篡改
-- 发现问题 → 触发熔断器 → 写入审计日志 → 发送告警
-- 无问题 → 仅记录正常状态
-
-运行方式：
-  python3 integrity_check.py [--dry-run] [--quiet]
-
-作者：Nyx
-日期：2026-05-20
+Fixes: relative paths
 """
 
 import os
@@ -22,19 +13,17 @@ import argparse
 from pathlib import Path
 from datetime import datetime
 
-# 添加项目路径
 _current_dir = Path(__file__).parent.resolve()
 if str(_current_dir) not in sys.path:
     sys.path.insert(0, str(_current_dir))
 
-# 配置
-BASE_DIR = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/knowledge-base"))
+REPO_ROOT = Path(__file__).parent.resolve()
+BASE_DIR = REPO_ROOT / "knowledge-base"
 ENTITY_TYPES = ["Concept", "Entity", "Event", "Rule", "Artifact", "Value"]
-HASH_INDEX = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/hash_index.json"))
-AUDIT_LOG = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/audit.jsonl"))
-CRON_LOG = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/integrity_cron.log"))
+HASH_INDEX = REPO_ROOT / "hash_index.json"
+AUDIT_LOG = REPO_ROOT / "audit.jsonl"
+CRON_LOG = REPO_ROOT / "integrity_cron.log"
 
-# 告警 Webhook（可选，收到篡改时通知）
 ALERT_WEBHOOK = os.environ.get("INTEGRITY_ALERT_WEBHOOK", "")
 
 
@@ -64,7 +53,7 @@ def full_integrity_check() -> dict:
         if not type_dir.exists():
             continue
         for f in sorted(type_dir.glob("*.md")):
-            rel_path = str(f.relative_to(BASE_DIR))
+            rel_path = str(f.relative_to(REPO_ROOT))
             current_hash = compute_file_hash(f)
             if rel_path not in index:
                 results["new"].append({"path": rel_path, "hash": current_hash})
@@ -78,7 +67,7 @@ def full_integrity_check() -> dict:
                 results["ok"].append({"path": rel_path, "hash": current_hash})
 
     for rel_path in index.keys():
-        full_path = BASE_DIR / rel_path
+        full_path = REPO_ROOT / rel_path
         if not full_path.exists():
             results["missing"].append({"path": rel_path})
 
@@ -116,7 +105,6 @@ def log(msg: str):
 
 
 def trigger_circuit_breaker(reason: str):
-    """触发熔断"""
     try:
         from gov_parser.circuit_breaker import get_circuit_breaker
         cb = get_circuit_breaker()
@@ -130,7 +118,6 @@ def trigger_circuit_breaker(reason: str):
 
 
 def send_alert(results: dict):
-    """发送告警通知（如果有webhook配置）"""
     if not ALERT_WEBHOOK:
         return
     try:
@@ -173,8 +160,6 @@ def main():
     has_issues = len(issues) > 0
 
     if has_issues:
-        tampered_files = [r["path"] for r in results["tampered"]]
-        missing_files = [r["path"] for r in results["missing"]]
         detail = f"完整性检查: ok={len(results['ok'])} tampered={len(results['tampered'])} missing={len(results['missing'])} new={len(results['new'])}"
         audit_log("INTEGRITY_ALERT", detail, status="warning")
         log(f"ISSUES FOUND: {len(results['tampered'])} tampered, {len(results['missing'])} missing")
