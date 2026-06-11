@@ -361,11 +361,11 @@ class TrustDomainChecker:
     def is_in_trust_domain() -> bool:
         """
         检查当前是否在信任域内
-        信任域定义：能访问 Z:\qclaw\ 的终端
+        信任域定义：能访问 Z:/qclaw/ 的终端
         """
         try:
             # 检查是否能访问共享目录
-            test_path = r"Z:\qclaw\instance.lock"
+            test_path = os.path.join("Z:", "qclaw", "instance.lock")
             if os.path.exists(test_path):
                 return True
             

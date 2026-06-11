@@ -15,22 +15,55 @@ from enum import Enum
 
 # ========== 配置 ==========
 class Config:
-    """MemGuard配置"""
-    # 基线存储路径 (N200加密分区)
-    BASELINE_DIR = r"Z:\qclaw\memguard_baseline"
-    BASELINE_SHA256 = os.path.join(BASELINE_DIR, "baseline.sha256")
-    BASELINE_BLAKE3 = os.path.join(BASELINE_DIR, "baseline.blake3")
-    BASELINE_LOCK = os.path.join(BASELINE_DIR, "baseline.lock")  # 只读锁标记
+    """MemGuard配置（支持环境变量覆盖，NAS不可达时自动回退）"""
+    
+    @staticmethod
+    def _resolve_path(key: str, default: str) -> str:
+        """解析路径：优先环境变量，其次默认值（NAS不可达时回退本地）"""
+        env_val = os.environ.get(key)
+        if env_val:
+            return env_val
+        # 如果默认路径是 NAS 且不可达，回退到本地目录
+        if default.startswith("Z:\\") or default.startswith("Z:/"):
+            if not os.path.exists("Z:\\"):
+                repo_root = Path(__file__).parent.parent.resolve()
+                # 把 Z:\qclaw\xxx 映射为 data/memguard/xxx
+                # 提取最后一段路径名
+                parts = default.replace("Z:\\", "").replace("Z:/", "").split(os.sep)
+                local_name = parts[-1] if parts else "default"
+                local_dir = repo_root / "data" / local_name
+                return str(local_dir)
+        return default
+    
+    # 基线存储路径 (优先 MEMGUARD_BASELINE_DIR，NAS不可达时回退 data/memguard/)
+    BASELINE_DIR: str = None
+    BASELINE_SHA256: str = None
+    BASELINE_BLAKE3: str = None
+    BASELINE_LOCK: str = None
     
     # 记忆存储路径
-    MEMORY_DIR = r"Z:\qclaw\memory"
+    MEMORY_DIR: str = None
     
     # 审计日志路径
-    AUDIT_DIR = r"Z:\qclaw\audit"
-    AUDIT_LOG = os.path.join(AUDIT_DIR, "audit.jsonl")
+    AUDIT_DIR: str = None
+    AUDIT_LOG: str = None
     
     # 状态文件
-    STATUS_FILE = os.path.join(AUDIT_DIR, "memory_status.json")
+    STATUS_FILE: str = None
+    
+    @classmethod
+    def init(cls):
+        """延迟初始化：解析所有路径（避免类加载时 NAS 不可达导致崩溃）"""
+        if cls.BASELINE_DIR is not None:
+            return  # 已初始化
+        cls.BASELINE_DIR = cls._resolve_path("MEMGUARD_BASELINE_DIR", r"Z:\qclaw\memguard_baseline")
+        cls.BASELINE_SHA256 = os.path.join(cls.BASELINE_DIR, "baseline.sha256")
+        cls.BASELINE_BLAKE3 = os.path.join(cls.BASELINE_DIR, "baseline.blake3")
+        cls.BASELINE_LOCK = os.path.join(cls.BASELINE_DIR, "baseline.lock")
+        cls.MEMORY_DIR = cls._resolve_path("MEMGUARD_MEMORY_DIR", r"Z:\qclaw\memory")
+        cls.AUDIT_DIR = cls._resolve_path("MEMGUARD_AUDIT_DIR", r"Z:\qclaw\audit")
+        cls.AUDIT_LOG = os.path.join(cls.AUDIT_DIR, "audit.jsonl")
+        cls.STATUS_FILE = os.path.join(cls.AUDIT_DIR, "memory_status.json")
     
     # 校验时间窗口（小时）
     CHECK_INTERVAL_HOURS = 4
@@ -121,6 +154,9 @@ class HashUtils:
         """计算日志Hash（用于Hash链）"""
         data = f"{log_entry['ts']}|{log_entry['event']}|{log_entry.get('memory_id','')}|{log_entry['operator']}|{prev_hash}|{log_entry.get('detail','')}"
         return HashUtils.sha256(data)
+
+# 模块加载时初始化配置（必须放在 Storage 等类定义之前）
+Config.init()
 
 # ========== 基础存储 ==========
 class Storage:
