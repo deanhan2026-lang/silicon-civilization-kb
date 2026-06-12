@@ -3,6 +3,10 @@
 MemGuard-GM API Server
 """
 import sys
+import io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8')
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
+
 import json
 import logging
 from pathlib import Path
@@ -16,6 +20,9 @@ sys.path.insert(0, str(Path(__file__).parent))
 from core import MemGuardEngine, Config, Storage
 from sync import SyncEngine, Delta
 from auth import AuthManager, PermissionLevel, NodeType
+
+# 初始化配置（必须在创建 engine 前调用）
+Config.init()
 
 app = Flask(__name__)
 CORS(app)
@@ -411,6 +418,11 @@ def test_access(memory_id):
     allowed, reason = engine.access_ctrl.check_access(memory_id, operator, operation)
     return jsonify({'memory_id': memory_id, 'operator': operator, 'operation': operation, 'allowed': allowed, 'reason': reason})
 
+@app.route('/health')
+def health_check():
+    """Health check endpoint for monitoring"""
+    return jsonify({'status': 'healthy', 'service': 'MemGuard-GM', 'version': '2.1'}), 200
+
 @app.errorhandler(404)
 def not_found(e):
     return jsonify({'error': 'Not Found'}), 404
@@ -433,12 +445,12 @@ if __name__ == '__main__':
         sm = SignatureManager()
         results, tamper_records = sm.verify_all_core_files()
         if tamper_records:
-            print(f'⚠️ 检测到 {len(tamper_records)} 个文件篡改警告')
+            print(f'[WARN] Detected {len(tamper_records)} file tamper warnings')
             for r in tamper_records:
                 print(f'  {r.filename}: {r.detection_type}')
         else:
-            print(f'✅ 核心文件完整性验证通过 ({len(results)} 个文件)')
+            print(f'[OK] Core file integrity verified ({len(results)} files)')
     except Exception as e:
-        print(f'⚠️ 完整性验证失败: {e}')
+        print(f'[WARN] Integrity verification failed: {e}')
     
     app.run(host='0.0.0.0', port=5050, debug=False)

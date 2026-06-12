@@ -27,17 +27,21 @@ except ImportError:
 class CryptoConfig:
     """加密配置"""
     # 加密数据存储
-    ENCRYPTED_DIR = r"Z:\qclaw\memguard_encrypted"
+    _ENCRYPTED_DIR_NAS = r"Z:\qclaw\memguard_encrypted"
+    _ENCRYPTED_LOCAL = str(Path(__file__).parent.parent / "data" / "memguard_encrypted")
+    ENCRYPTED_DIR = _ENCRYPTED_LOCAL if not os.path.exists("Z:") else _ENCRYPTED_DIR_NAS
     
     # 密钥分片存储位置（三副本）
     KEYSHARE_LOCATIONS = {
-        'local': r"Z:\qclaw\memguard_keys\share_local.json",
-        'nas': r"Z:\qclaw\memguard_keys\share_nas.json",
-        'n200': r"Z:\qclaw\memguard_keys\share_n200.json"
+        'local': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_local.json"),
+        'nas': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_nas.json"),
+        'n200': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_n200.json")
     }
     
     # 加密配置文件
-    CRYPTO_CONFIG = os.path.join(ENCRYPTED_DIR, "crypto_config.json")
+    _CRYPTO_CONFIG_NAS = os.path.join(_ENCRYPTED_DIR_NAS, "crypto_config.json")
+    _CRYPTO_CONFIG_LOCAL = os.path.join(_ENCRYPTED_LOCAL, "crypto_config.json")
+    CRYPTO_CONFIG = _CRYPTO_CONFIG_LOCAL if not os.path.exists("Z:") else _CRYPTO_CONFIG_NAS
     
     # 盐值长度
     SALT_LENGTH = 32

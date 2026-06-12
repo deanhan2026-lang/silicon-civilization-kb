@@ -1,0 +1,24 @@
+# MemGuard-GM 统一配置
+version: "2.5"
+
+storage:
+  baseline_dir: "./memguard_baseline"
+  memory_dir: "./memory"
+  audit_dir: "./audit"
+  backup_dir: "./backup"
+
+security:
+  hash_algorithms: ["sha256", "blake3"]
+  allow_baseline_unlock: false
+
+scheduler:
+  check_interval_seconds: 14400
+
+server:
+  host: "0.0.0.0"
+  port: 5050
+
+logging:
+  level: "INFO"
+  audit_log: "./audit/audit.jsonl"
+  server_log: "./memguard/server.log"

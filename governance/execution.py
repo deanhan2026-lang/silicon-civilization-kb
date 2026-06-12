@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from kb import ProtocolEnforcer, ENTITY_TYPES, parse_yaml_front_matter
 
 # 导入共识层
-from consensus import ConsensusEngine, ProposalStatus
+from governance.consensus import ConsensusEngine, ProposalStatus
 
 # ========== 配置 ==========
 EXECUTION_DIR = Path(__file__).parent / "execution_data"

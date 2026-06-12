@@ -14,23 +14,24 @@ from dataclasses import dataclass, asdict
 from enum import Enum
 
 # ========== 配置 ==========
+# Z:\ 路径回退（NAS 不可用时映射到本地 data/）
+from pathlib import Path as _Path
+_AUDIT_NAS = r"Z:\\qclaw\\audit"
+_AUDIT_LOCAL = str(_Path(__file__).parent.parent / "data" / "qclaw_audit")
+AUDIT_DIR = _AUDIT_LOCAL if not os.path.exists("Z:") else _AUDIT_NAS
+AUDIT_LOG = os.path.join(AUDIT_DIR, "audit_enhanced.jsonl")
+AUDIT_INDEX = os.path.join(AUDIT_DIR, "audit_index.json")
+ALERT_CONFIG = os.path.join(AUDIT_DIR, "alert_config.json")
+
 class EnhancedAuditConfig:
-    """增强审计配置"""
-    # 审计日志路径
-    AUDIT_DIR = r"Z:\qclaw\audit"
-    AUDIT_LOG = os.path.join(AUDIT_DIR, "audit_enhanced.jsonl")
-    AUDIT_INDEX = os.path.join(AUDIT_DIR, "audit_index.json")  # 快速检索索引
-    
-    # 告警配置
-    ALERT_CONFIG = os.path.join(AUDIT_DIR, "alert_config.json")
-    
-    # 告警Webhook（可选）
+    AUDIT_DIR = AUDIT_DIR
+    AUDIT_LOG = AUDIT_LOG
+    AUDIT_INDEX = AUDIT_INDEX
+    ALERT_CONFIG = ALERT_CONFIG
     ALERT_WEBHOOK_URL = os.environ.get('MEMGUARD_ALERT_WEBHOOK', '')
-    
-    # 可疑操作阈值
-    SUSPICIOUS_FAILED_LOGIN = 3     # 失败登录次数
-    SUSPICIOUS_RAPID_OPERATIONS = 50  # 1分钟内操作次数
-    SUSPICIOUS_OFF_HOURS = (22, 7)    # 22:00-07:00 为异常时段
+    SUSPICIOUS_FAILED_LOGIN = 3
+    SUSPICIOUS_RAPID_OPERATIONS = 50
+    SUSPICIOUS_OFF_HOURS = (22, 7)
 
 # ========== 枚举 ==========
 class AuditEventType(Enum):
@@ -220,19 +221,19 @@ class EnhancedAuditManager:
     """增强审计日志管理器"""
     
     def __init__(self):
-        self.log_path = EnhancedAuditConfig.AUDIT_LOG
-        self.index_path = EnhancedAuditConfig.AUDIT_INDEX
+        self.log_path = AUDIT_LOG
+        self.index_path = AUDIT_INDEX
         self.alert_rules = self._load_alert_rules()
         self._ensure_dirs()
     
     def _ensure_dirs(self):
         """确保目录存在"""
-        Path(EnhancedAuditConfig.AUDIT_DIR).mkdir(parents=True, exist_ok=True)
+        Path(AUDIT_DIR).mkdir(parents=True, exist_ok=True)
     
     def _load_alert_rules(self) -> List[AlertRule]:
         """加载告警规则"""
-        if os.path.exists(EnhancedAuditConfig.ALERT_CONFIG):
-            with open(EnhancedAuditConfig.ALERT_CONFIG, 'r', encoding='utf-8') as f:
+        if os.path.exists(ALERT_CONFIG):
+            with open(ALERT_CONFIG, 'r', encoding='utf-8') as f:
                 rules = json.load(f)
                 return [AlertRule(**r) for r in rules]
         
@@ -268,7 +269,8 @@ class EnhancedAuditManager:
     
     def _save_alert_rules(self, rules: List[AlertRule]):
         """保存告警规则"""
-        with open(EnhancedAuditConfig.ALERT_CONFIG, 'w', encoding='utf-8') as f:
+        Path(AUDIT_DIR).mkdir(parents=True, exist_ok=True)
+        with open(ALERT_CONFIG, 'w', encoding='utf-8') as f:
             json.dump([r.to_dict() for r in rules], f, indent=2)
     
     def _get_prev_hash(self) -> str:
