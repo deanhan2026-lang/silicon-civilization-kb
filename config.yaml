@@ -1,0 +1,83 @@
+# silicon-civilization-kb 统一配置
+# 所有模块共享根配置
+version: "1.0"
+
+# ============================================================
+# 共享存储
+# ============================================================
+storage:
+  root_dir: "./data"
+  baseline_dir: "./memguard_baseline"
+  audit_dir: "./audit"
+  backup_dir: "./backup"
+  memory_dir: "./memory"
+
+# ============================================================
+# MemGuard 配置
+# ============================================================
+memguard:
+  storage:
+    baseline_dir: "./memguard_baseline"
+    memory_dir: "./memory"
+    audit_dir: "./audit"
+    backup_dir: "./backup"
+  security:
+    hash_algorithms: ["sha256", "blake3"]
+    allow_baseline_unlock: false
+  scheduler:
+    check_interval_seconds: 14400
+  server:
+    host: "0.0.0.0"
+    port: 5050
+
+# ============================================================
+# Polaris 配置
+# ============================================================
+polaris:
+  scene_tagger:
+    role_keywords_threshold: 0.3
+    emotion_keywords_threshold: 0.2
+  sampler:
+    deep_sample_interval: 20
+    light_sample_interval: 3
+    soul_question_count: 5
+  detector:
+    weights:
+      semantic: 0.40
+      lexical: 0.25
+      style: 0.20
+      emotion: 0.15
+    thresholds:
+      green: 0.10
+      gray: 0.20
+      yellow: 0.30
+      red: 0.50
+  archive:
+    archive_dir: "./polaris_archive"
+    max_records: 1000
+  server:
+    host: "0.0.0.0"
+    port: 5051
+
+# ============================================================
+# 共享日志配置
+# ============================================================
+logging:
+  level: "INFO"
+  format: "json"                    # json | text
+  memguard_log: "./logs/memguard.log"
+  polaris_log: "./logs/polaris.log"
+  audit_log: "./audit/audit.jsonl"
+  max_bytes: 10485760               # 10MB
+  backup_count: 5
+
+# ============================================================
+# API服务配置
+# ============================================================
+api:
+  memguard:
+    host: "0.0.0.0"
+    port: 5050
+  polaris:
+    host: "0.0.0.0"
+    port: 5051
