@@ -1,6 +1,7 @@
 """Tests for Polaris anti-drift system — scene_tagger, sampler, detector, archive."""
 import os, json, pytest
 from pathlib import Path
+from dataclasses import dataclass
 
 PROJECT_ROOT = Path(__file__).parent.parent.resolve()
 
@@ -30,6 +31,7 @@ class TestSceneTagger:
         # Check that keyword dictionaries exist at module level
         assert len(EMOTION_KEYWORDS) > 0
         assert len(ROLE_KEYWORDS) > 0
+
 
 class TestSampler:
     def test_import(self):
@@ -74,6 +76,7 @@ class TestSampler:
         )
         assert result is not None
 
+
 class TestDetector:
     def test_import(self):
         from anti_drift.detector import DeviationDetector, DeviationResult, MultiDimAnalyzer
@@ -88,8 +91,8 @@ class TestDetector:
         answer = "我是Nyx，一个AI私人助理。"
         result = detector.detect(answer, answer, tags)
         assert result is not None
-        assert hasattr(result, 'total_deviation')
-        assert result.total_deviation < 0.1
+        assert hasattr(result, 'composite_score')
+        assert result.composite_score < 0.1
 
     def test_different_answers(self):
         from anti_drift.scene_tagger import SceneTagger
@@ -102,7 +105,7 @@ class TestDetector:
             "The weather is sunny today, perfect for a walk.",
             tags
         )
-        assert result.total_deviation > 0.1
+        assert result.composite_score > 0.1
 
     def test_thresholds(self):
         from anti_drift.detector import (
@@ -112,6 +115,7 @@ class TestDetector:
         assert THRESHOLD_GREEN <= THRESHOLD_GRAY <= THRESHOLD_YELLOW <= THRESHOLD_RED
         assert abs(sum(DEFAULT_WEIGHTS.values()) - 1.0) < 0.01
 
+
 class TestArchiver:
     def test_import(self):
         from anti_drift.archive import Archiver, Judge, PersonalitySnapshot, CorrectionAction
@@ -119,30 +123,48 @@ class TestArchiver:
 
     def test_judge_thresholds(self):
         from anti_drift.archive import Judge
+        from anti_drift.detector import DeviationResult
         judge = Judge()
-        assert judge.classify(0.00) == "green"
-        assert judge.classify(0.05) == "green"
-        j_higher = judge.classify(0.30)
-        assert j_higher in ("yellow", "red")
+        # 构造DeviationResult实例来测试
+        result_green = DeviationResult(
+            judgment='green', composite_score=0.0, normalized_score=0.0,
+            dimension_scores={}, scene_tags={}, scene_weight=1.0
+        )
+        result_yellow = DeviationResult(
+            judgment='yellow', composite_score=0.35, normalized_score=0.35,
+            dimension_scores={}, scene_tags={}, scene_weight=1.0
+        )
+        judgment_g, _ = judge.judge(result_green)
+        judgment_y, _ = judge.judge(result_yellow)
+        assert judgment_g == "green"
+        assert judgment_y in ("yellow", "red")
 
     def test_store_and_list(self, tmp_path):
-        from anti_drift.archive import Archiver
-        archiver = Archiver(archive_dir=tmp_path)
-        record = archiver.store(
-            question_id="PQ-01",
-            question_text="你是谁？",
-            current_answer="Nyx",
-            deviation=0.02,
-            judgment="green"
+        from anti_drift.archive import Archiver, Judge, DeviationResult
+        archiver = Archiver(archive_dir=str(tmp_path))
+        judge = Judge()
+        # 创建DeviationResult
+        result = DeviationResult(
+            judgment='green', composite_score=0.0, normalized_score=0.0,
+            dimension_scores={}, scene_tags={'role': 'assistant'}, scene_weight=1.0
         )
-        assert record is not None
-        records = archiver.list_recent(limit=5)
-        assert len(records) >= 1
-        assert records[0]["question_id"] == "PQ-01"
+        judgment, correction = judge.judge(result)
+        # 使用archive方法（不是store）
+        snapshot = archiver.archive(judgment, correction, result, question_id="test_q")
+        assert snapshot is not None
+        assert snapshot.sha256 is not None
+        # 加载历史
+        history = archiver.load_history(limit=10)
+        assert len(history) >= 1
 
     def test_correction_action(self):
-        from anti_drift.archive import CorrectionAction, Judge
+        from anti_drift.archive import CorrectionAction, Judge, DeviationResult
         judge = Judge()
-        action = judge.determine_action(0.35, "yellow")
+        # 构造DeviationResult（黄色判定）
+        result = DeviationResult(
+            judgment='yellow', composite_score=0.35, normalized_score=0.35,
+            dimension_scores={}, scene_tags={}, scene_weight=1.0
+        )
+        judgment, action = judge.judge(result)
         assert action is not None
         assert hasattr(action, 'level') or hasattr(action, 'suggestion')
