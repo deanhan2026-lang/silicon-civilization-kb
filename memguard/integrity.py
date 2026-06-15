@@ -44,9 +44,10 @@ class IntegrityConfig:
     ]
     
     # Workspace路径（可用 MEMGUARD_WORKSPACE 覆盖，默认从签名目录推导）
+    # FIX: workspace在repo的父目录，不在repo内部
     WORKSPACE_DIR = os.environ.get(
         "MEMGUARD_WORKSPACE",
-        str(REPO_ROOT / "workspace")
+        str(REPO_ROOT.parent)
     )
 
 # ========== 数据结构 ==========
