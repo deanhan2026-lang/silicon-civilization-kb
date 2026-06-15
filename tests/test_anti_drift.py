@@ -26,10 +26,10 @@ class TestSceneTagger:
         assert tags is not None
 
     def test_keywords_present(self):
-        from anti_drift.scene_tagger import SceneTagger
-        tagger = SceneTagger()
-        # Check that keyword dictionaries exist
-        assert hasattr(tagger, 'keywords') or hasattr(tagger, 'ROLE_KEYWORDS') or hasattr(tagger, 'EMOTION_KEYWORDS')
+        from anti_drift.scene_tagger import EMOTION_KEYWORDS, ROLE_KEYWORDS
+        # Check that keyword dictionaries exist at module level
+        assert len(EMOTION_KEYWORDS) > 0
+        assert len(ROLE_KEYWORDS) > 0
 
 class TestSampler:
     def test_import(self):
