@@ -6,7 +6,7 @@ Memory Vault - 存储层
 import json
 import os
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Dict
 from memory_vault.entry import MemoryEntry
 
 
@@ -19,7 +19,7 @@ class MemoryStore:
         self.archive_dir = self.base / "archive"
         self.index_file = self.base / "index.json"
         self._cache: Dict[str, Optional[MemoryEntry]] = {}
-        self._cache_dirty = False
+        self._idx_cache: Optional[dict] = None   # in-memory index cache
         self._ensure_dirs()
 
     def _ensure_dirs(self):
@@ -31,18 +31,24 @@ class MemoryStore:
     # ---- 索引管理 ----
 
     def _load_index(self) -> dict:
+        # 先查内存缓存，避免重复磁盘IO
+        if self._idx_cache is not None:
+            return self._idx_cache
         try:
             with open(self.index_file, "r", encoding="utf-8") as f:
-                return json.load(f)
+                self._idx_cache = json.load(f)
+                return self._idx_cache
         except (FileNotFoundError, json.JSONDecodeError):
+            self._idx_cache = {}
             return {}
 
     def _save_index(self, index: dict):
+        self._idx_cache = index
         with open(self.index_file, "w", encoding="utf-8") as f:
             json.dump(index, f, ensure_ascii=False, indent=2)
 
     def _update_index(self, entry: MemoryEntry, op: str = "add"):
-        index = self._load_index()
+        index = self._load_index()  # 走内存缓存，无磁盘IO
         if op == "add" or op == "update":
             index[entry.id] = {
                 "category": entry.category.value,
