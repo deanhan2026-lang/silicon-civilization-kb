@@ -8,6 +8,7 @@ import os
 import tempfile
 import shutil
 from pathlib import Path
+from datetime import datetime, timezone
 
 # 确保导入路径正确
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -34,11 +35,15 @@ def tmp_vault():
 # ===== entry.py 测试 =====
 
 def test_entry_id_stable():
-    """同一内容生成相同ID"""
-    id1 = entry_id("GitHub Agent 集成成功")
-    id2 = entry_id("GitHub Agent 集成成功")
+    """同一内容 + 不带时间戳时生成相同ID"""
+    id1 = entry_id("GitHub Agent 集成成功", timestamp=False)
+    id2 = entry_id("GitHub Agent 集成成功", timestamp=False)
     assert id1 == id2
     assert id1.startswith("mem_")
+    # 带时间戳时每次不同
+    id3 = entry_id("GitHub Agent 集成成功", timestamp=True)
+    assert id3.startswith("mem_")
+    assert id3 != id1
 
 
 def test_entry_creation():
@@ -80,8 +85,11 @@ def test_entry_decay_p0_never():
 
 
 def test_entry_decay_p2():
-    """P2 条目正常衰减"""
+    """P2 条目正常衰减（模拟已过检查间隔）"""
     entry = MemoryEntry(content="日志", priority=Priority.P2)
+    # 手动设置 last_decay_at 为足够久以前，使衰减生效
+    from datetime import timedelta
+    entry.meta.last_decay_at = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
     entry.apply_decay()
     assert entry.meta.decay_score < 1.0
     assert entry.meta.decay_score > 0.0
@@ -243,12 +251,14 @@ def test_验收_可追溯_来源链(tmp_vault):
 
 
 def test_验收_可遗忘_衰减(tmp_vault):
-    """可遗忘：P2 条目衰减后 decay_score 降低"""
+    """可遗忘：P2 条目经过足够时间后衰减"""
+    from datetime import timedelta
     vid = tmp_vault.remember("临时日志", priority=Priority.P2)
     entry = tmp_vault.store.get(vid)
     assert entry.meta.decay_score == 1.0
-    for _ in range(5):
-        entry.apply_decay()
+    # 模拟8天过去（P2间隔7天）
+    entry.meta.last_decay_at = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
+    entry.apply_decay()
     assert entry.meta.decay_score < 1.0
 
 

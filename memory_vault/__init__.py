@@ -7,9 +7,10 @@ from memory_vault.entry import MemoryEntry, Priority, Category, SourceType, Conf
 from memory_vault.store import MemoryStore
 from memory_vault.index import MemoryIndex
 from memory_vault.vault import MemoryVault
+from memory_vault.dedup import Deduplicator
 
 __all__ = [
     "MemoryEntry", "Priority", "Category", "SourceType", "Confidence", "entry_id",
-    "MemoryStore", "MemoryIndex", "MemoryVault",
+    "MemoryStore", "MemoryIndex", "MemoryVault", "Deduplicator",
 ]
 __version__ = "0.1.0"

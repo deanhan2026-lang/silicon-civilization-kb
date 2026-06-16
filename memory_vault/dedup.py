@@ -41,7 +41,7 @@ def levenshtein_distance(s1: str, s2: str) -> int:
 class Deduplicator:
     """去重与存储压缩引擎"""
 
-    def __init__(self, store: MemoryStore, similarity_threshold: float = 0.1):
+    def __init__(self, store: MemoryStore, similarity_threshold: float = 0.80):
         self.store = store
         self.similarity_threshold = similarity_threshold
         self.hash_index_path: Path = store.base / "hash_index.json"
@@ -62,27 +62,9 @@ class Deduplicator:
     @staticmethod
     def _levenshtein_ratio(s1: str, s2: str) -> float:
         """计算编辑距离比率：1 - (distance / max_len)，返回 [0, 1]"""
-        if not s1 and not s2:
-            return 1.0
-        if not s1 or not s2:
-            return 0.0
-        m, n = len(s1), len(s2)
-        if m > n:
-            s1, s2 = s2, s1
-            m, n = n, m
-        prev = list(range(m + 1))
-        for j in range(1, n + 1):
-            curr = [j] + [0] * m
-            for i in range(1, m + 1):
-                cost = 0 if s1[i - 1] == s2[j - 1] else 1
-                curr[i] = min(
-                    curr[i - 1] + 1,
-                    prev[i] + 1,
-                    prev[i - 1] + cost,
-                )
-            prev = curr
-        distance = prev[m]
-        return 1.0 - distance / max(len(s1), len(s2))
+        dist = levenshtein_distance(s1, s2)
+        max_len = max(len(s1), len(s2))
+        return 1.0 - dist / max_len if max_len > 0 else 1.0
 
     def _entry_size_bytes(self, entry: MemoryEntry) -> int:
         """估算单条条目占用的JSON字节数"""

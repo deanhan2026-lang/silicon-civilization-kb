@@ -11,13 +11,15 @@ from memory_vault.entry import MemoryEntry
 
 
 class MemoryStore:
-    """JSON文件存储"""
+    """JSON文件存储（带内存缓存）"""
 
     def __init__(self, base_path: str):
         self.base = Path(base_path)
         self.entries_dir = self.base / "entries"
         self.archive_dir = self.base / "archive"
         self.index_file = self.base / "index.json"
+        self._cache: Dict[str, Optional[MemoryEntry]] = {}
+        self._cache_dirty = False
         self._ensure_dirs()
 
     def _ensure_dirs(self):
@@ -63,27 +65,35 @@ class MemoryStore:
         path = self._entry_path(entry.id)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(entry.to_dict(), f, ensure_ascii=False, indent=2)
+        self._cache[entry.id] = entry
         self._update_index(entry, "add")
         return entry.id
 
     def get(self, entry_id: str) -> Optional[MemoryEntry]:
-        """按ID读取一条记忆"""
+        """按ID读取一条记忆（带缓存）"""
+        if entry_id in self._cache:
+            return self._cache[entry_id]
         path = self._entry_path(entry_id)
         if not path.exists():
+            self._cache[entry_id] = None
             return None
         try:
             with open(path, "r", encoding="utf-8") as f:
                 d = json.load(f)
-            return MemoryEntry.from_dict(d)
+            entry = MemoryEntry.from_dict(d)
+            self._cache[entry_id] = entry
+            return entry
         except (json.JSONDecodeError, KeyError):
+            self._cache[entry_id] = None
             return None
 
     def update(self, entry: MemoryEntry):
         """更新一条记忆"""
-        entry.meta.updated_at = entry.meta.updated_at  # 已在 touch/apply_decay 中更新
+        entry.meta.updated_at = entry.meta.updated_at
         path = self._entry_path(entry.id)
         with open(path, "w", encoding="utf-8") as f:
             json.dump(entry.to_dict(), f, ensure_ascii=False, indent=2)
+        self._cache[entry.id] = entry
         self._update_index(entry, "update")
 
     def delete(self, entry_id: str) -> bool:
@@ -91,15 +101,16 @@ class MemoryStore:
         path = self._entry_path(entry_id)
         if path.exists():
             path.unlink()
+            self._cache.pop(entry_id, None)
             self._update_index(MemoryEntry(content="", id=entry_id), "delete")
             return True
         return False
 
     def list_all(self, include_archived: bool = False) -> List[MemoryEntry]:
-        """列出所有记忆"""
+        """列出所有记忆（使用缓存减少文件IO）"""
         results = []
         for eid in self._load_index().keys():
-            entry = self.get(eid)
+            entry = self.get(eid)  # 走缓存
             if entry and (include_archived or not entry.meta.is_archived):
                 results.append(entry)
         return results

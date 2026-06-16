@@ -948,3 +948,7 @@ def encrypt_all():
 
 if __name__ == "__main__":
     cli()
+
+def get_chroma_client():
+    return None
+

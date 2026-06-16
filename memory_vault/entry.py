@@ -66,6 +66,7 @@ class Meta:
     decay_score: float = 1.0   # 1.0 = 从未衰减，0.0 = 完全衰减
     is_archived: bool = False
     is_deprecated: bool = False  # 被后续条目替代
+    last_decay_at: Optional[str] = None  # 上次衰减时间
 
 
 @dataclass
@@ -109,6 +110,7 @@ class MemoryEntry:
                 "decay_score": self.meta.decay_score,
                 "is_archived": self.meta.is_archived,
                 "is_deprecated": self.meta.is_deprecated,
+                "last_decay_at": self.meta.last_decay_at,
             },
         }
 
@@ -135,6 +137,7 @@ class MemoryEntry:
             decay_score=meta.get("decay_score", 1.0),
             is_archived=meta.get("is_archived", False),
             is_deprecated=meta.get("is_deprecated", False),
+            last_decay_at=meta.get("last_decay_at"),
         )
         return cls(**d)
 
@@ -146,11 +149,29 @@ class MemoryEntry:
         self.meta.updated_at = datetime.now(timezone.utc).isoformat()
 
     def apply_decay(self):
-        """应用一次衰减"""
+        """基于时间维度应用衰减（跳过未到间隔的条目）"""
         params = DECAY_PARAMS[self.priority]
-        if params["decay_per_check"] > 0:
-            self.meta.decay_score = max(0.0, self.meta.decay_score - params["decay_per_check"])
-            self.meta.updated_at = datetime.now(timezone.utc).isoformat()
+        interval = params["check_interval_days"]
+        if interval is None:
+            return  # P0 永不衰减
+
+        now = datetime.now(timezone.utc)
+        last = self.meta.last_decay_at
+        if last is None:
+            last_dt = datetime.fromisoformat(self.meta.created_at).replace(tzinfo=timezone.utc)
+        else:
+            last_dt = datetime.fromisoformat(last)
+
+        elapsed_days = (now - last_dt).days
+        if elapsed_days < interval:
+            return  # 未到检查间隔，跳过
+
+        # 按实际经过的周期数衰减
+        cycles = elapsed_days // interval
+        rate = params["decay_per_check"]
+        self.meta.decay_score = max(0.0, self.meta.decay_score - rate * cycles)
+        self.meta.last_decay_at = now.isoformat()
+        self.meta.updated_at = now.isoformat()
 
     def should_archive(self) -> bool:
         """是否应该归档"""
@@ -168,7 +189,15 @@ class MemoryEntry:
         return f"[{self.priority.value}] {self.content[:60]}..."
 
 
-def entry_id(content: str) -> str:
-    """根据内容生成稳定的短ID"""
-    h = hashlib.sha256(content.encode("utf-8")).hexdigest()[:12]
+def entry_id(content: str, *, timestamp: bool = True) -> str:
+    """根据内容 + 时间戳生成唯一ID，避免同内容碰撞
+
+    Args:
+        content: 记忆内容
+        timestamp: 是否附加时间戳（默认 True，保证唯一性）
+    """
+    h = hashlib.sha256(content.encode("utf-8")).hexdigest()[:8]
+    if timestamp:
+        ts = datetime.now(timezone.utc).strftime("%y%m%d%H%M%S")
+        return f"mem_{h}_{ts}"
     return f"mem_{h}"

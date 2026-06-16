@@ -412,3 +412,94 @@
 [2026-06-12 12:03:04] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
 [2026-06-12 12:03:04] Integrity Check Completed
 [2026-06-12 12:03:04] ========================================
+[2026-06-13 17:40:52] ========================================
+[2026-06-13 17:40:52] Integrity Check Started
+[2026-06-13 17:40:52] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-13 17:40:52] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-13 17:40:52] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-13 17:40:52] Integrity Check Completed
+[2026-06-13 17:40:52] ========================================
+[2026-06-13 19:43:28] ========================================
+[2026-06-13 19:43:28] Integrity Check Started
+[2026-06-13 19:43:28] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-13 19:43:28] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-13 19:43:28] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-13 19:43:28] Integrity Check Completed
+[2026-06-13 19:43:28] ========================================
+[2026-06-14 09:41:51] ========================================
+[2026-06-14 09:41:51] Integrity Check Started
+[2026-06-14 09:41:51] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-14 09:41:51] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-14 09:41:51] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-14 09:41:51] Integrity Check Completed
+[2026-06-14 09:41:51] ========================================
+[2026-06-14 17:40:42] ========================================
+[2026-06-14 17:40:42] Integrity Check Started
+[2026-06-14 17:40:42] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-14 17:40:43] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-14 17:40:43] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-14 17:40:43] Integrity Check Completed
+[2026-06-14 17:40:43] ========================================
+[2026-06-14 17:40:58] ========================================
+[2026-06-14 17:40:58] Integrity Check Started
+[2026-06-14 17:40:58] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-14 17:40:58] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-14 17:40:58] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-14 17:40:58] Integrity Check Completed
+[2026-06-14 17:40:58] ========================================
+[2026-06-14 19:43:23] ========================================
+[2026-06-14 19:43:23] Integrity Check Started
+[2026-06-14 19:43:23] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-14 19:43:23] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-14 19:43:23] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-14 19:43:23] Integrity Check Completed
+[2026-06-14 19:43:23] ========================================
+[2026-06-15 12:02:55] ========================================
+[2026-06-15 12:02:55] Integrity Check Started
+[2026-06-15 12:02:55] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-15 12:02:55] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-15 12:02:55] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-15 12:02:55] Integrity Check Completed
+[2026-06-15 12:02:55] ========================================
+[2026-06-15 18:03:00] ========================================
+[2026-06-15 18:03:00] Integrity Check Started
+[2026-06-15 18:03:00] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-15 18:03:00] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-15 18:03:00] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-15 18:03:00] Integrity Check Completed
+[2026-06-15 18:03:00] ========================================
+[2026-06-16 09:10:23] ========================================
+[2026-06-16 09:10:23] Integrity Check Started
+[2026-06-16 09:10:23] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-16 09:10:24] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-16 09:10:24] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-16 09:10:24] Integrity Check Completed
+[2026-06-16 09:10:24] ========================================
+[2026-06-16 12:03:13] ========================================
+[2026-06-16 12:03:13] Integrity Check Started
+[2026-06-16 12:03:13] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-16 12:03:14] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-16 12:03:14] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-16 12:03:14] Integrity Check Completed
+[2026-06-16 12:03:14] ========================================
+[2026-06-16 12:03:37] ========================================
+[2026-06-16 12:03:37] Integrity Check Started
+[2026-06-16 12:03:37] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-16 12:03:37] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-16 12:03:37] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-16 12:03:37] Integrity Check Completed
+[2026-06-16 12:03:37] ========================================
+[2026-06-16 12:03:45] ========================================
+[2026-06-16 12:03:45] Integrity Check Started
+[2026-06-16 12:03:45] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-16 12:03:45] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-16 12:03:45] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-16 12:03:45] Integrity Check Completed
+[2026-06-16 12:03:45] ========================================
+[2026-06-16 12:03:52] ========================================
+[2026-06-16 12:03:52] Integrity Check Started
+[2026-06-16 12:03:52] ISSUES FOUND: 0 tampered, 25 missing
+[2026-06-16 12:03:52] CIRCUIT_BREAKER TRIGGERED: 知识库完整性检查失败: 0个文件被篡改, 25个文件缺失
+[2026-06-16 12:03:52] Result: {'status': 'already_frozen', 'reason': '系统已处于熔断状态'}
+[2026-06-16 12:03:52] Integrity Check Completed
+[2026-06-16 12:03:52] ========================================

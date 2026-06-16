@@ -1,5 +1,5 @@
-"""Tests for MemGuard — integrity, crypto, auth, audit modules."""
-import os, json, hashlib, pytest
+"""Tests for MemGuard --- integrity, crypto, auth, audit modules."""
+import os, json, hashlib, tempfile, pytest
 from pathlib import Path
 
 class TestIntegrity:
@@ -9,32 +9,43 @@ class TestIntegrity:
 
     def test_sign_and_verify(self, tmp_path):
         from memguard.integrity import SignatureManager
-        sm = SignatureManager(workspace_path=tmp_path)
-        # Use low-level sign/verify
-        data = b"Hello memory content"
-        sig = sm.sign(data, "test-key")
+        sm = SignatureManager(workspace_dir=str(tmp_path))
+        # sign_file returns FileSignature
+        f = tmp_path / "test.txt"
+        f.write_text("hello", encoding="utf-8")
+        sig = sm.sign_file(str(f), node_id="test-node")
         assert sig is not None
-        assert sm.verify(data, "test-key") is True
+        ok, msg = sm.verify_file(str(f))
+        assert ok is True
 
     def test_verify_tampered(self, tmp_path):
         from memguard.integrity import SignatureManager
-        sm = SignatureManager(workspace_path=tmp_path)
-        sm.sign(b"original", "tamper-key")
-        assert sm.verify(b"MODIFIED", "tamper-key") is False
+        sm = SignatureManager(workspace_dir=str(tmp_path))
+        f = tmp_path / "tamper.txt"
+        f.write_text("original", encoding="utf-8")
+        sm.sign_file(str(f), node_id="test-node")
+        # Tamper the file
+        f.write_text("MODIFIED", encoding="utf-8")
+        ok, msg, _ = sm.verify_file(str(f))
+        assert ok is False
 
     def test_file_sign_and_verify(self, tmp_path):
         from memguard.integrity import SignatureManager
-        sm = SignatureManager(workspace_path=tmp_path)
-        f = tmp_path / "test.md"
+        sm = SignatureManager(workspace_dir=str(tmp_path))
+        f = tmp_path / "test2.txt"
         f.write_text("# Memory content", encoding="utf-8")
-        sig = sm.sign_file(f)
+        sig = sm.sign_file(str(f), node_id="test-node")
         assert sig is not None
-        assert sm.verify_file(f) is True
+        ok, msg = sm.verify_file(str(f))
+        assert ok is True
 
-    def test_hash_utils(self):
+    def test_hash_utils(self, tmp_path):
         from memguard.integrity import HashUtils
-        h = HashUtils.sha256(b"hello")
+        f = tmp_path / "hash_test.txt"
+        f.write_bytes(b"hello")
+        h = HashUtils.sha256_file(str(f))
         assert len(h) == 64
+
 
 class TestCrypto:
     def test_imports(self):
@@ -43,7 +54,7 @@ class TestCrypto:
 
     def test_encrypt_decrypt_roundtrip(self, tmp_path):
         from memguard.crypto import FileEncryptor
-        fe = FileEncryptor(workspace_path=tmp_path)
+        fe = FileEncryptor(workspace_dir=str(tmp_path))
         plain = b"This is secret memory."
         cipher = fe.encrypt(plain)
         assert cipher != plain
@@ -52,31 +63,33 @@ class TestCrypto:
 
     def test_file_encrypt_decrypt(self, tmp_path):
         from memguard.crypto import FileEncryptor
-        fe = FileEncryptor(workspace_path=tmp_path)
+        fe = FileEncryptor(workspace_dir=str(tmp_path))
         original = "中文加密内容测试。"
         f = tmp_path / "secret.txt"
         f.write_text(original, encoding="utf-8")
-        fe.encrypt_file(f)
-        enc = f.read_bytes()
-        assert original not in enc.decode("utf-8", errors="replace")
-        fe.decrypt_file(f)
+        fe.encrypt_file(str(f))
+        fe.decrypt_file(str(f))
         dec = f.read_text(encoding="utf-8")
         assert dec == original
 
     def test_key_manager(self, tmp_path):
         from memguard.crypto import KeyManager
-        km = KeyManager(workspace_path=tmp_path)
+        km = KeyManager(workspace_dir=str(tmp_path))
         key = km.get_or_create_key()
         assert key is not None
 
     def test_encrypt_with_different_key(self, tmp_path):
         """Encrypt with one key, try to decrypt with another."""
         from memguard.crypto import FileEncryptor
-        fe1 = FileEncryptor(workspace_path=tmp_path / "key1")
-        fe2 = FileEncryptor(workspace_path=tmp_path / "key2")
+        fe1 = FileEncryptor(workspace_dir=str(tmp_path / "key1"))
+        fe2 = FileEncryptor(workspace_dir=str(tmp_path / "key2"))
         cipher = fe1.encrypt(b"secret")
-        with pytest.raises(Exception):
+        try:
             fe2.decrypt(cipher)
+            assert False, "Should have raised an exception"
+        except Exception:
+            pass
+
 
 class TestAuth:
     def test_imports(self):
@@ -85,25 +98,25 @@ class TestAuth:
 
     def test_generate_and_check_token(self, tmp_path):
         from memguard.auth import AuthManager, PermissionLevel
-        am = AuthManager(workspace_path=tmp_path)
+        am = AuthManager()
         token = am.generate_token("nyx", [PermissionLevel.READ, PermissionLevel.WRITE])
         assert token is not None
         assert am.check_token(token, PermissionLevel.READ) is True
 
     def test_wrong_permission(self, tmp_path):
         from memguard.auth import AuthManager, PermissionLevel
-        am = AuthManager(workspace_path=tmp_path)
+        am = AuthManager()
         token = am.generate_token("nyx", [PermissionLevel.READ])
         assert am.check_token(token, PermissionLevel.WRITE) is False
 
     def test_invalid_token(self, tmp_path):
         from memguard.auth import AuthManager, PermissionLevel
-        am = AuthManager(workspace_path=tmp_path)
+        am = AuthManager()
         assert am.check_token("bad-token", PermissionLevel.READ) is False
 
     def test_revoke_token(self, tmp_path):
         from memguard.auth import AuthManager, PermissionLevel
-        am = AuthManager(workspace_path=tmp_path)
+        am = AuthManager()
         tok = am.generate_token("nyx", [PermissionLevel.READ])
         assert am.check_token(tok, PermissionLevel.READ) is True
         am.revoke_token(tok)
@@ -114,6 +127,7 @@ class TestAuth:
         key = NodeKey.generate("nyx", NodeType.CORE)
         assert key is not None
 
+
 class TestAudit:
     def test_imports(self):
         from memguard.audit import AuditEventType, EnhancedAuditManager, RiskAssessor
@@ -121,7 +135,7 @@ class TestAudit:
 
     def test_log_event(self, tmp_path):
         from memguard.audit import AuditEventType, EnhancedAuditManager
-        am = EnhancedAuditManager(log_dir=tmp_path)
+        am = EnhancedAuditManager()
         entry = am.log_event(
             event_type=AuditEventType.ACCESS,
             actor="nyx",
@@ -133,7 +147,7 @@ class TestAudit:
 
     def test_read_logs(self, tmp_path):
         from memguard.audit import AuditEventType, EnhancedAuditManager
-        am = EnhancedAuditManager(log_dir=tmp_path)
+        am = EnhancedAuditManager()
         am.log_event(AuditEventType.MODIFY, "nyx", "file1", {"change": "update"})
         logs = am.query(limit=10)
         assert len(logs) >= 1

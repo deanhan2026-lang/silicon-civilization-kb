@@ -54,9 +54,9 @@ class MemoryVault:
             body=body,
             source=Source(type=source_type, confidence=confidence, attribution=attribution),
         )
-        self.store.add(entry)
-        self.index.refresh()
-        return entry.id
+        eid = self.store.add(entry)
+        self.index.add_to_index(entry)
+        return eid
 
     # ---- 好调用 ----
 
@@ -85,7 +85,7 @@ class MemoryVault:
         if entry:
             entry.touch()
             self.store.update(entry)
-            self.index.refresh()
+            self.index.update_in_index(entry)
         return entry
 
     def recent(self, limit: int = 10) -> List[MemoryEntry]:
@@ -120,18 +120,20 @@ class MemoryVault:
 
             if entry.should_archive():
                 self.store.archive(entry.id)
+                self.index.remove_from_index(entry.id)
                 archived_ids.append(entry.id)
             else:
                 self.store.update(entry)
+                self.index.update_in_index(entry)
             decayed += 1
 
-        self.index.refresh()
         return {"archived": archived_ids, "decayed": decayed}
 
     def archive(self, entry_id: str) -> bool:
         """手动归档一条记忆"""
         result = self.store.archive(entry_id)
-        self.index.refresh()
+        if result:
+            self.index.remove_from_index(entry_id)
         return result
 
     # ---- 一致性检测 ----

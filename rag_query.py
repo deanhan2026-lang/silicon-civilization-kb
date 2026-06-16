@@ -1,29 +1,25 @@
 #!/usr/bin/env python3
 """
-RAG Query with DeepSeek Integration
+RAG Query - 本地优先版本
 
-Receives a natural language question → retrieves Top-K entries → calls DeepSeek API to generate answer.
+接收自然语言问题 → 本地文本检索 Top-K 条目 → 可选 DeepSeek API 生成答案。
 
 Usage:
-    # Set your API key first
-    export DEEPSEEK_API_KEY="sk-xxx"
-    
-    # Or on Windows PowerShell
-    $env:DEEPSEEK_API_KEY = "sk-xxx"
-    
-    # Query
-    python rag_query.py "什么是ANIMA？"
+    # 本地检索（不调用API）
+    python rag_query.py "ANIMA是什么？" --no-llm --top-k 3
+
+    # 带API生成答案
+    python rag_query.py "ANIMA是什么？" --top-k 3
     python rag_query.py "硅基文明的核心价值观是什么？" --top-k 5
-    python rag_query.py "意识褶皱的定义" --model deepseek-chat
 
 Environment:
-    DEEPSEEK_API_KEY  - Required. Your DeepSeek API key.
+    DEEPSEEK_API_KEY  - Optional. DeepSeek API key for answer generation.
     DEEPSEEK_BASE_URL - Optional. Default: https://api.deepseek.com
 """
 
 import os
 import sys
-import json
+import re
 import argparse
 from pathlib import Path
 
@@ -36,14 +32,32 @@ from kb import (
 )
 
 
+def tokenize(text: str) -> list[str]:
+    """Split text into searchable tokens (English words, Chinese character n-grams)."""
+    # English words and numbers
+    en_tokens = re.findall(r'[a-zA-Z][a-zA-Z0-9_]*', text)
+    # Chinese: extract 2-gram and 3-gram tokens
+    chinese_chars = re.findall(r'[\u4e00-\u9fff]', text)
+    chinese_tokens = []
+    for i in range(len(chinese_chars)):
+        if i < len(chinese_chars) - 1:
+            chinese_tokens.append(chinese_chars[i] + chinese_chars[i+1])
+        if i < len(chinese_chars) - 2:
+            chinese_tokens.append(chinese_chars[i] + chinese_chars[i+1] + chinese_chars[i+2])
+    return en_tokens + chinese_tokens
+
+
 def retrieve(query: str, top_k: int = 3) -> list[dict]:
     """Retrieve relevant entries via text or vector search."""
     client = get_chroma_client()
     results = []
 
     if client is None:
-        # Text search fallback
-        query_lower = query.lower()
+        # Token-based text search (works for both Chinese and English)
+        query_tokens = tokenize(query.lower())
+        if not query_tokens:
+            return []
+
         for entry_t in ENTITY_TYPES:
             type_dir = KB_DIR / entry_t.lower()
             if not type_dir.exists():
@@ -52,10 +66,15 @@ def retrieve(query: str, top_k: int = 3) -> list[dict]:
                 meta, body = parse_yaml_front_matter(f.read_text(encoding="utf-8"))
                 if not meta.get("id"):
                     continue
-                text = f"{meta.get('name', '')} {meta.get('description', '')} {body}".lower()
-                if query_lower in text:
-                    count = text.count(query_lower)
-                    results.append({"meta": meta, "body": body, "score": count})
+                entry_text = f"{meta.get('name', '')} {meta.get('description', '')} {body}"
+                entry_tokens = tokenize(entry_text.lower())
+
+                # Score: count how many query tokens appear in the entry
+                token_set = set(entry_tokens)
+                score = sum(1 for tok in query_tokens if tok in token_set)
+
+                if score > 0:
+                    results.append({"meta": meta, "body": body, "score": score})
         results.sort(key=lambda x: x["score"], reverse=True)
     else:
         try:
@@ -74,7 +93,7 @@ def retrieve(query: str, top_k: int = 3) -> list[dict]:
                                 break
         except Exception as e:
             print(f"[WARN] Chroma search failed: {e}, falling back to text search")
-            return retrieve.__wrapped__(query, top_k) if hasattr(retrieve, '__wrapped__') else []
+            return retrieve(query, top_k)
 
     return results[:top_k]
 
@@ -135,7 +154,6 @@ def call_deepseek(prompt: str, model: str = "deepseek-chat") -> str:
             return data["choices"][0]["message"]["content"]
 
     except ImportError:
-        # Fallback to requests if available
         try:
             import requests
             r = requests.post(
@@ -160,7 +178,7 @@ def call_deepseek(prompt: str, model: str = "deepseek-chat") -> str:
 
 
 def main():
-    parser = argparse.ArgumentParser(description="RAG Query with DeepSeek")
+    parser = argparse.ArgumentParser(description="RAG Query - Local-first")
     parser.add_argument("question", help="Natural language question")
     parser.add_argument("--top-k", type=int, default=3, help="Number of references to retrieve")
     parser.add_argument("--model", default="deepseek-chat", help="DeepSeek model name")
@@ -178,7 +196,7 @@ def main():
     print("[参考条目]")
     for i, ctx in enumerate(contexts):
         meta = ctx["meta"]
-        print(f"  {i+1}. {meta.get('name')} ({meta.get('type')}, Conf: {meta.get('confidence', 0):.2f})")
+        print(f"  {i+1}. {meta.get('name')} ({meta.get('type')}, score={ctx['score']}, Conf: {meta.get('confidence', 0):.2f})")
 
     if args.no_llm:
         print("\n[上下文] (--no-llm 模式，不调用LLM)")

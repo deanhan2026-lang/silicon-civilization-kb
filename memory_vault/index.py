@@ -40,8 +40,42 @@ class MemoryIndex:
             for tag in entry.tags:
                 self._by_tag.setdefault(tag.lower(), []).append(entry.id)
 
+    def add_to_index(self, entry: MemoryEntry):
+        """增量添加一条到内存索引"""
+        self._all_ids.append(entry.id)
+        self._by_id[entry.id] = entry
+        cat = entry.category.value
+        self._by_category.setdefault(cat, []).append(entry.id)
+        pri = entry.priority.value
+        self._by_priority.setdefault(pri, []).append(entry.id)
+        for tag in entry.tags:
+            self._by_tag.setdefault(tag.lower(), []).append(entry.id)
+
+    def remove_from_index(self, entry_id: str):
+        """从内存索引移除一条"""
+        entry = self._by_id.pop(entry_id, None)
+        if entry:
+            self._all_ids = [i for i in self._all_ids if i != entry_id]
+            cat = entry.category.value
+            if cat in self._by_category:
+                self._by_category[cat] = [i for i in self._by_category[cat] if i != entry_id]
+            pri = entry.priority.value
+            if pri in self._by_priority:
+                self._by_priority[pri] = [i for i in self._by_priority[pri] if i != entry_id]
+            for tag in entry.tags:
+                key = tag.lower()
+                if key in self._by_tag:
+                    self._by_tag[key] = [i for i in self._by_tag[key] if i != entry_id]
+
+    def update_in_index(self, entry: MemoryEntry):
+        """更新索引中已存在的条目"""
+        if entry.id in self._by_id:
+            self._by_id[entry.id] = entry
+        else:
+            self.add_to_index(entry)
+
     def refresh(self):
-        """刷新索引（写入后调用）"""
+        """全量重建索引（用于初始化或数据损坏后恢复）"""
         self._rebuild_inmemory_index()
 
     def search(
