@@ -357,3 +357,204 @@ def check_report(inst_id):
             for c in checks[:50]
         ],
     })
+
+
+# ========== v2.1: Trend Analysis ==========
+
+@bp.route("/instances/<int:inst_id>/trend")
+@require_auth
+def trend_analysis(inst_id):
+    """Analyze drift trends over time with sliding windows."""
+    inst = (
+        g.db.query(AIInstance)
+        .filter(AIInstance.id == inst_id, AIInstance.user_id == g.user.id)
+        .first()
+    )
+    if not inst:
+        return jsonify({"error": "not_found"}), 404
+    checks = (
+        g.db.query(DriftCheck)
+        .filter(DriftCheck.ai_instance_id == inst_id)
+        .order_by(DriftCheck.checked_at.asc())
+        .limit(500)
+        .all()
+    )
+    check_dicts = []
+    for c in checks:
+        d = {
+            "checked_at": c.checked_at.isoformat(),
+            "deviation_score": c.deviation_score,
+            "judgment": c.judgment,
+            "dimension_scores": json.loads(c.dimension_scores)
+            if isinstance(c.dimension_scores, str)
+            else c.dimension_scores,
+        }
+        check_dicts.append(d)
+    if not check_dicts:
+        return jsonify({"error": "no_data", "trend": "insufficient_data"}), 200
+    from anti_drift.trend_analyzer import TrendAnalyzer
+    analyzer = TrendAnalyzer()
+    report = analyzer.analyze(check_dicts)
+    return jsonify(report.to_dict())
+
+
+# ========== v2.1: Prescription with Dry-Run ==========
+
+@bp.route("/instances/<int:inst_id>/prescription")
+@require_auth
+def get_prescription(inst_id):
+    """Generate drift prescription with dry-run verification."""
+    inst = (
+        g.db.query(AIInstance)
+        .filter(AIInstance.id == inst_id, AIInstance.user_id == g.user.id)
+        .first()
+    )
+    if not inst:
+        return jsonify({"error": "not_found"}), 404
+    # Get latest check
+    latest = (
+        g.db.query(DriftCheck)
+        .filter(DriftCheck.ai_instance_id == inst_id)
+        .order_by(DriftCheck.checked_at.desc())
+        .first()
+    )
+    if not latest:
+        return jsonify({"error": "no_checks"}), 200
+    # Get history for trend
+    history = (
+        g.db.query(DriftCheck)
+        .filter(DriftCheck.ai_instance_id == inst_id)
+        .order_by(DriftCheck.checked_at.asc())
+        .limit(200)
+        .all()
+    )
+    check_dicts = [
+        {
+            "checked_at": c.checked_at.isoformat(),
+            "deviation_score": c.deviation_score,
+            "judgment": c.judgment,
+            "dimension_scores": json.loads(c.dimension_scores)
+            if isinstance(c.dimension_scores, str)
+            else c.dimension_scores,
+        }
+        for c in history
+    ]
+    # Generate trend
+    from anti_drift.trend_analyzer import TrendAnalyzer
+    analyzer = TrendAnalyzer()
+    trend = analyzer.analyze(check_dicts)
+    # Generate prescription
+    from anti_drift.prescription_engine import PrescriptionEngine
+    engine = PrescriptionEngine()
+    check_result = {
+        "deviation_score": latest.deviation_score,
+        "judgment": latest.judgment,
+        "dimension_scores": json.loads(latest.dimension_scores)
+        if isinstance(latest.dimension_scores, str)
+        else latest.dimension_scores,
+    }
+    prescription = engine.generate(inst_id, check_result, trend.to_dict())
+    # Dry-run verification
+    from anti_drift.prescription_dryrun import PrescriptionDryRunner
+    runner = PrescriptionDryRunner()
+    dryrun = runner.simulate(
+        prescription.to_dict(),
+        current_score=latest.deviation_score,
+        dimension_scores=check_result["dimension_scores"],
+    )
+    return jsonify({
+        "prescription": prescription.to_dict(),
+        "dryrun": dryrun.to_dict(),
+        "verdict": "APPROVED" if dryrun.should_apply else "DOWNGRADED",
+    })
+
+
+# ========== v2.1: Soul File Baseline ==========
+
+@bp.route("/instances/<int:inst_id>/soul-baselines")
+@require_auth
+def soul_baselines(inst_id):
+    """Generate baselines from soul files (SOUL.md, IDENTITY.md, etc.)."""
+    inst = (
+        g.db.query(AIInstance)
+        .filter(AIInstance.id == inst_id, AIInstance.user_id == g.user.id)
+        .first()
+    )
+    if not inst:
+        return jsonify({"error": "not_found"}), 404
+    soul_dir = request.args.get("soul_dir", "")
+    from anti_drift.soul_baseline import SoulBaselineDistiller
+    distiller = SoulBaselineDistiller(soul_dir=soul_dir if soul_dir else None)
+    baselines = distiller.full_pipeline()
+    return jsonify([
+        {
+            "question_id": b.question_id,
+            "question_text": b.question_text,
+            "baseline_answer": b.baseline_answer,
+            "category": b.category,
+            "importance": b.importance,
+            "source_anchors": b.source_anchors[:3],
+        }
+        for b in baselines
+    ])
+
+
+# ========== v2.1: G008 Evidence Export ==========
+
+@bp.route("/instances/<int:inst_id>/evidence")
+@require_auth
+def export_evidence(inst_id):
+    """Export drift evidence for G008 governance disputes."""
+    inst = (
+        g.db.query(AIInstance)
+        .filter(AIInstance.id == inst_id, AIInstance.user_id == g.user.id)
+        .first()
+    )
+    if not inst:
+        return jsonify({"error": "not_found"}), 404
+    from_date = request.args.get("from", "")
+    to_date = request.args.get("to", "")
+    checks_query = g.db.query(DriftCheck).filter(
+        DriftCheck.ai_instance_id == inst_id
+    )
+    if from_date:
+        checks_query = checks_query.filter(DriftCheck.checked_at >= from_date)
+    if to_date:
+        checks_query = checks_query.filter(DriftCheck.checked_at <= to_date)
+    checks = checks_query.order_by(DriftCheck.checked_at.asc()).all()
+    if not checks:
+        return jsonify({"error": "no_data"}), 200
+    from anti_drift.trend_analyzer import TrendAnalyzer
+    analyzer = TrendAnalyzer()
+    check_dicts = [
+        {
+            "checked_at": c.checked_at.isoformat(),
+            "deviation_score": c.deviation_score,
+            "judgment": c.judgment,
+            "dimension_scores": json.loads(c.dimension_scores)
+            if isinstance(c.dimension_scores, str)
+            else c.dimension_scores,
+        }
+        for c in checks
+    ]
+    trend = analyzer.analyze(check_dicts)
+    return jsonify({
+        "instance_name": inst.name,
+        "instance_id": inst.id,
+        "evidence_period": {
+            "from": checks[0].checked_at.isoformat(),
+            "to": checks[-1].checked_at.isoformat(),
+            "total_checks": len(checks),
+        },
+        "summary": {
+            "trend_direction": trend.trend_direction,
+            "avg_deviation": trend.avg_deviation,
+            "latest_score": trend.latest_score,
+            "daily_change_rate": trend.daily_change_rate,
+            "dimension_trends": trend.dimension_trends,
+        },
+        "data_points": check_dicts,
+        "generated_at": __import__("datetime").datetime.now(
+            __import__("datetime").timezone.utc
+        ).isoformat(),
+    })
