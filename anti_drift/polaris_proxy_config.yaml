@@ -1,0 +1,33 @@
+# Polaris Proxy 配置文件
+# 透明代理中间件配置
+
+# 监听配置（用户连接这个端口）
+listen_host: "127.0.0.1"
+listen_port: 5053
+
+# 上游LLM API（将请求转发到这里）
+# 示例：https://api.openai.com
+upstream_url: ""
+upstream_api_key: ""
+
+# 采样策略
+# - every_n: 每N次请求采样一次
+# - random: 每次按概率采样
+# - adaptive: 自适应（数据少时频繁，数据多时降低）
+sampling_mode: "every_n"
+sampling_rate: 5        # every_n模式下，每5次采样一次
+random_probability: 0.2  # random模式下的采样概率
+
+# 检测配置
+instance_id: 1          # Polaris SaaS中的AI实例ID
+check_threshold: 0.15   # 触发处方告警的偏离阈值
+
+# 存储
+sample_log_path: ""     # 采样日志路径（留空则不保存）
+# sample_log_path: "Z:/qclaw/polaris/data/sample_log.json"
+
+# 处方推送（可选，留空则不推送）
+prescription_callback_url: ""
+
+# 超时
+timeout_seconds: 120
