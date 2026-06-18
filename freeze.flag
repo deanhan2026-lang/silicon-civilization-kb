@@ -1,7 +1,0 @@
-{
-  "frozen": true,
-  "frozen_since": "2026-06-11T10:03:09.504623",
-  "reason": "路径结构变更: integrity_check.py的BASE_DIR指向knowledge-base/但文件实际在根目录(concept/entity/event/rule/)，artifact/和value/目录已不存在",
-  "frozen_by": "cron",
-  "timestamp": "2026-06-11T10:03:09.504628"
-}

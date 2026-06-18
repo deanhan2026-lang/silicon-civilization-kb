@@ -513,8 +513,10 @@ class TestLogger:
     def test_get_logger_with_file(self):
         """测试文件日志"""
         from memguard.logger import get_logger
+        import logging
         
-        with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = tempfile.mkdtemp()
+        try:
             log_file = Path(tmpdir) / "test.log"
             
             logger = get_logger("file_test", log_file=str(log_file))
@@ -528,6 +530,13 @@ class TestLogger:
             data = json.loads(content.strip())
             
             assert data["message"] == "Test log entry"
+        finally:
+            # Close all handlers to release file locks on Windows
+            for h in logger.handlers[:]:
+                h.close()
+                logger.removeHandler(h)
+            import shutil
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 # 导入 hashlib 用于测试

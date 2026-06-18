@@ -2,6 +2,13 @@
 import sys, os, tempfile, json, shutil
 import pytest
 
+# ── Python 3.14 tempfile fd bug workaround ──
+# pytest's default capture closes tempfile fds during teardown
+# causing ValueError: I/O operation on closed file
+@pytest.hookimpl(tryfirst=True)
+def pytest_configure(config):
+    config.option.capture = "no"
+
 # ── test root ──
 PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, PROJECT_ROOT)
