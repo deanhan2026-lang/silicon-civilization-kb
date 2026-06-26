@@ -2,6 +2,10 @@
 Memory Vault - 统一API门面
 """
 
+from common.logger import get_logger
+
+logger = get_logger(__name__)
+
 import os
 from pathlib import Path
 from typing import List, Optional, Dict
@@ -26,6 +30,7 @@ class MemoryVault:
         self.base = Path(base_path)
         self.store = MemoryStore(str(base_path))
         self.index = MemoryIndex(self.store)
+        logger.info(f"MemoryVault initialized, base={base_path}")
 
     # ---- 记得住 ----
 
@@ -56,6 +61,7 @@ class MemoryVault:
         )
         eid = self.store.add(entry)
         self.index.add_to_index(entry)
+        logger.info(f"记忆已存储: id={eid[:8]}..., priority={priority.value}, category={category.value}, tags={tags}")
         return eid
 
     # ---- 好调用 ----
@@ -71,13 +77,15 @@ class MemoryVault:
         """
         检索记忆
         """
-        return self.index.search(
+        results = self.index.search(
             query=query,
             category=category,
             priority_min=priority_min,
             tags=tags,
             limit=limit,
         )
+        logger.debug(f"检索记忆: query={query}, category={category}, results={len(results)}条")
+        return results
 
     def get(self, entry_id: str) -> Optional[MemoryEntry]:
         """直接获取一条记忆"""
@@ -86,21 +94,30 @@ class MemoryVault:
             entry.touch()
             self.store.update(entry)
             self.index.update_in_index(entry)
+            logger.debug(f"获取记忆: id={entry_id[:8]}..., content={entry.content[:50]}...")
+        else:
+            logger.warning(f"记忆未找到: id={entry_id[:8]}...")
         return entry
 
     def recent(self, limit: int = 10) -> List[MemoryEntry]:
         """最近访问的记忆"""
-        return self.index.recent(limit)
+        results = self.index.recent(limit)
+        logger.debug(f"获取最近记忆: {len(results)}条")
+        return results
 
     def hot(self, limit: int = 10) -> List[MemoryEntry]:
         """最高频访问的记忆"""
-        return self.index.hot(limit)
+        results = self.index.hot(limit)
+        logger.debug(f"获取热点记忆: {len(results)}条")
+        return results
 
     # ---- 好调用：元信息 ----
 
     def stat(self) -> Dict:
         """存储统计"""
-        return self.store.stat()
+        s = self.store.stat()
+        logger.debug(f"记忆存储统计: {s}")
+        return s
 
     # ---- 可遗忘：衰减 + 归档 ----
 
@@ -127,6 +144,7 @@ class MemoryVault:
                 self.index.update_in_index(entry)
             decayed += 1
 
+        logger.info(f"遗忘调度完成: 归档 {len(archived_ids)} 条, 衰减 {decayed} 条")
         return {"archived": archived_ids, "decayed": decayed}
 
     def archive(self, entry_id: str) -> bool:
@@ -134,6 +152,9 @@ class MemoryVault:
         result = self.store.archive(entry_id)
         if result:
             self.index.remove_from_index(entry_id)
+            logger.info(f"记忆已归档: id={entry_id[:8]}...")
+        else:
+            logger.warning(f"记忆归档失败: id={entry_id[:8]}...")
         return result
 
     # ---- 一致性检测 ----
@@ -168,6 +189,10 @@ class MemoryVault:
                     ],
                 })
 
+        if conflicts:
+            logger.warning(f"一致性检测发现 {len(conflicts)} 个潜在冗余组")
+        else:
+            logger.info("一致性检测通过，无冗余发现")
         return conflicts
 
     # ---- 来源追溯 ----
@@ -176,7 +201,9 @@ class MemoryVault:
         """追溯一条记忆的来源"""
         entry = self.store.get(entry_id)
         if not entry:
+            logger.warning(f"追溯失败: 记忆未找到 id={entry_id[:8]}...")
             return None
+        logger.debug(f"追溯记忆来源: id={entry_id[:8]}..., type={entry.source.type.value}, attribution={entry.source.attribution}")
         return {
             "id": entry.id,
             "content": entry.content[:100],

@@ -17,6 +17,10 @@ from pathlib import Path
 from datetime import datetime
 from flask import Flask, jsonify, send_from_directory, abort, Response, request
 
+# 日志
+from common.logger import get_logger
+logger = get_logger(__name__)
+
 # Fix Windows console encoding
 if sys.platform == "win32":
     try:
@@ -49,10 +53,10 @@ try:
         is_frozen
     )
     GOV_PARSER_AVAILABLE = True
-    print("[INFO] 治理解析器模块加载成功")
+    logger.info("治理解析器模块加载成功")
 except ImportError as e:
     GOV_PARSER_AVAILABLE = False
-    print(f"[WARN] 治理解析器模块加载失败: {e}", file=sys.stderr)
+    logger.warning(f"治理解析器模块加载失败: {e}")
 
 app = Flask(__name__, static_folder='static')
 

@@ -3,6 +3,10 @@
 MemGuard-GM Crypto - 数据加密模块
 实现瞬方案：AES-256加密 + 密钥分片存储
 """
+from common.logger import get_logger
+
+logger = get_logger(__name__)
+
 import os
 import json
 import base64
@@ -91,23 +95,29 @@ class AES256Crypto:
     def __init__(self):
         if not CRYPTO_AVAILABLE:
             self._mock_mode = True
+            logger.warning("cryptography库未安装，使用模拟加密模式")
         else:
             self._mock_mode = False
+        logger.info(f"AES256Crypto initialized, mock_mode={self._mock_mode}")
     
     def generate_key(self) -> bytes:
         """生成32字节（256位）随机密钥"""
-        return secrets.token_bytes(32)
+        key = secrets.token_bytes(32)
+        logger.debug("AES-256密钥已生成")
+        return key
     
     def encrypt(self, plaintext: bytes, key: bytes) -> Tuple[bytes, bytes, bytes]:
         """
         AES-256-GCM加密
         返回: (nonce, ciphertext, tag)
         """
+        logger.info(f"AES-256-GCM加密开始，输入大小: {len(plaintext)} 字节")
         if self._mock_mode:
             # 模拟模式：简单Base64编码
             nonce = secrets.token_bytes(CryptoConfig.NONCE_LENGTH)
             ciphertext = base64.b64encode(plaintext)
             tag = hashlib.sha256(plaintext).digest()[:16]
+            logger.info("模拟加密完成")
             return nonce, ciphertext, tag
         
         # 真实加密
@@ -121,15 +131,19 @@ class AES256Crypto:
         ciphertext = ciphertext_with_tag[:-16]
         tag = ciphertext_with_tag[-16:]
         
+        logger.info(f"AES-256-GCM加密完成，密文大小: {len(ciphertext)} 字节")
         return nonce, ciphertext, tag
     
     def decrypt(self, nonce: bytes, ciphertext: bytes, tag: bytes, key: bytes) -> bytes:
         """
         AES-256-GCM解密
         """
+        logger.info(f"AES-256-GCM解密开始，密文大小: {len(ciphertext)} 字节")
         if self._mock_mode:
             # 模拟模式：Base64解码
-            return base64.b64decode(ciphertext)
+            plaintext = base64.b64decode(ciphertext)
+            logger.info("模拟解密完成")
+            return plaintext
         
         # 真实解密
         aesgcm = AESGCM(key)
@@ -137,8 +151,10 @@ class AES256Crypto:
         
         try:
             plaintext = aesgcm.decrypt(nonce, ciphertext_with_tag, None)
+            logger.info("AES-256-GCM解密成功")
             return plaintext
         except Exception as e:
+            logger.error(f"解密失败: {e}")
             raise ValueError(f"解密失败：{e}")
     
     @staticmethod
@@ -203,12 +219,14 @@ class KeyManager:
     def __init__(self):
         self.crypto = AES256Crypto()
         self._ensure_dirs()
+        logger.info(f"KeyManager initialized, encrypted_dir={CryptoConfig.ENCRYPTED_DIR}")
     
     def _ensure_dirs(self):
         """确保目录存在"""
         Path(CryptoConfig.ENCRYPTED_DIR).mkdir(parents=True, exist_ok=True)
         for path in CryptoConfig.KEYSHARE_LOCATIONS.values():
-            Path(path).parent.mkdir(parents=True, exist_ok=True)
+            Path(path).parent.mkdir(parents=True, exist_ok=True)        
+        logger.debug(f"加密目录和密钥分片目录已就绪")
     
     def generate_and_store_key(self) -> bytes:
         """
@@ -247,6 +265,7 @@ class KeyManager:
         with open(CryptoConfig.CRYPTO_CONFIG, 'w', encoding='utf-8') as f:
             json.dump(config, f, indent=2)
         
+        logger.info(f"新密钥已生成并分片存储到 {CryptoConfig.SHARE_TOTAL} 个位置，恢复阈值={CryptoConfig.SHARE_THRESHOLD}")
         return key
     
     def recover_key(self, locations: List[str] = None) -> bytes:
@@ -269,9 +288,12 @@ class KeyManager:
                 shares.append(share)
         
         if len(shares) < CryptoConfig.SHARE_THRESHOLD:
+            logger.error(f"密钥恢复失败：需要至少 {CryptoConfig.SHARE_THRESHOLD} 个分片，当前只有 {len(shares)} 个")
             raise ValueError(f"需要至少 {CryptoConfig.SHARE_THRESHOLD} 个分片，当前只有 {len(shares)} 个")
         
-        return ShamirSecretSharing.recover_secret(shares[:CryptoConfig.SHARE_THRESHOLD])
+        recovered_key = ShamirSecretSharing.recover_secret(shares[:CryptoConfig.SHARE_THRESHOLD])
+        logger.info(f"密钥已从 {len(shares[:CryptoConfig.SHARE_THRESHOLD])} 个分片恢复")
+        return recovered_key
 
 # ========== 文件加密器 ==========
 class FileEncryptor:
@@ -282,19 +304,23 @@ class FileEncryptor:
         self.key_mgr = KeyManager()
         self.metadata_file = os.path.join(CryptoConfig.ENCRYPTED_DIR, "encrypted_files.json")
         self._load_metadata()
+        logger.debug(f"FileEncryptor initialized, metadata_file={self.metadata_file}")
     
     def _load_metadata(self):
         """加载加密文件元数据"""
         if os.path.exists(self.metadata_file):
             with open(self.metadata_file, 'r', encoding='utf-8') as f:
                 self.metadata = json.load(f)
+            logger.debug(f"已加载 {len(self.metadata)} 条加密文件元数据")
         else:
             self.metadata = {}
+            logger.debug("无加密文件元数据文件，初始化为空")
     
     def _save_metadata(self):
         """保存元数据"""
         with open(self.metadata_file, 'w', encoding='utf-8') as f:
             json.dump(self.metadata, f, indent=2, ensure_ascii=False)
+        logger.debug(f"已保存 {len(self.metadata)} 条加密文件元数据")
     
     def encrypt_file(
         self,
@@ -354,7 +380,9 @@ class FileEncryptor:
         # 删除原始文件（如果要求）
         if delete_original:
             os.remove(file_path)
+            logger.info(f"原始文件已删除: {file_path}")
         
+        logger.info(f"文件加密成功: {file_path} -> {output_path} (大小: {len(ciphertext)} 字节)")
         return encrypted_file
     
     def decrypt_file(
@@ -406,6 +434,7 @@ class FileEncryptor:
         with open(output_path, 'wb') as f:
             f.write(plaintext)
         
+        logger.info(f"文件解密成功: {encrypted_path} -> {output_path} (大小: {len(plaintext)} 字节)")
         return output_path
     
     def list_encrypted(self) -> List[EncryptedFile]:
@@ -441,8 +470,10 @@ class CoreFileProtector:
         """
         if existing_key:
             self.key = existing_key
+            logger.info("CoreFileProtector使用已有密钥")
         else:
             self.key = self.encryptor.key_mgr.generate_and_store_key()
+            logger.info("CoreFileProtector生成新密钥并分片存储")
             print(f"新密钥已生成并分片存储到 {CryptoConfig.SHARE_TOTAL} 个位置")
             print(f"恢复阈值: {CryptoConfig.SHARE_THRESHOLD}")
         
@@ -457,10 +488,12 @@ class CoreFileProtector:
         
         results = []
         
+        logger.info(f"开始加密核心灵魂文件，共 {len(self.CORE_FILES)} 个")
         for filename in self.CORE_FILES:
             file_path = os.path.join(self.workspace_root, filename)
             
             if not os.path.exists(file_path):
+                logger.warning(f"跳过不存在的核心文件: {filename}")
                 print(f"跳过不存在的文件: {filename}")
                 continue
             
@@ -471,10 +504,13 @@ class CoreFileProtector:
                     delete_original=delete_originals
                 )
                 results.append(encrypted)
+                logger.info(f"核心文件加密成功: {filename}")
                 print(f"已加密: {filename} -> {encrypted.encrypted_path}")
             except Exception as e:
+                logger.error(f"核心文件加密失败 {filename}: {e}")
                 print(f"加密失败 {filename}: {e}")
         
+        logger.info(f"核心文件加密完成: {len(results)}/{len(self.CORE_FILES)} 个成功")
         return results
     
     def decrypt_all_core_files(self) -> List[str]:
@@ -482,9 +518,10 @@ class CoreFileProtector:
         解密所有核心灵魂文件
         """
         if not self.key:
-            # 尝试从分片恢复密钥
+            logger.info("无已加载密钥，尝试从分片恢复")
             self.key = self.encryptor.key_mgr.recover_key()
         
+        logger.info("开始解密所有核心灵魂文件")
         results = []
         
         for encrypted in self.encryptor.list_encrypted():
@@ -494,20 +531,26 @@ class CoreFileProtector:
                     self.key
                 )
                 results.append(output_path)
+                logger.info(f"核心文件解密成功: {os.path.basename(encrypted.original_path)}")
                 print(f"已解密: {encrypted.encrypted_path} -> {output_path}")
             except Exception as e:
+                logger.error(f"核心文件解密失败 {encrypted.encrypted_path}: {e}")
                 print(f"解密失败: {e}")
         
+        logger.info(f"核心文件解密完成: {len(results)} 个成功")
         return results
     
     def verify_integrity(self) -> dict:
         """
         验证所有加密文件的完整性
         """
+        logger.info("开始验证所有加密文件完整性")
         if not self.key:
             self.key = self.encryptor.key_mgr.recover_key()
         
         results = {}
+        valid_count = 0
+        invalid_count = 0
         
         for encrypted in self.encryptor.list_encrypted():
             try:
@@ -521,12 +564,16 @@ class CoreFileProtector:
                     'status': 'valid',
                     'original_hash': encrypted.original_hash
                 }
+                valid_count += 1
             except ValueError as e:
                 results[encrypted.original_path] = {
                     'status': 'invalid',
                     'error': str(e)
                 }
+                invalid_count += 1
+                logger.error(f"完整性验证失败: {encrypted.original_path} - {e}")
         
+        logger.info(f"完整性验证完成: {valid_count} 有效, {invalid_count} 无效")
         return results
 
 # ========== CLI入口 ==========
@@ -547,10 +594,12 @@ def main():
         return
     
     cmd = sys.argv[1]
+    logger.info(f"CLI命令: {cmd}, 参数: {sys.argv[2:]}")
     
     if cmd == "init":
         key_mgr = KeyManager()
         key = key_mgr.generate_and_store_key()
+        logger.info("CLI: 密钥生成并分片存储")
         print(f"密钥已生成并分片存储")
         print(f"明文密钥（请保存）: {base64.b64encode(key).decode('utf-8')}")
     
@@ -564,6 +613,7 @@ def main():
         
         encryptor = FileEncryptor()
         result = encryptor.encrypt_file(sys.argv[2], key)
+        logger.info(f"CLI加密完成: {result.encrypted_path}")
         print(f"已加密: {result.encrypted_path}")
     
     elif cmd == "decrypt":
@@ -576,17 +626,20 @@ def main():
         
         encryptor = FileEncryptor()
         output = encryptor.decrypt_file(sys.argv[2], key)
+        logger.info(f"CLI解密完成: {output}")
         print(f"已解密: {output}")
     
     elif cmd == "list":
         encryptor = FileEncryptor()
         files = encryptor.list_encrypted()
+        logger.info(f"CLI列出加密文件: {len(files)} 个")
         for f in files:
             print(f"{f.original_path} -> {f.encrypted_path}")
     
     elif cmd == "recover_key":
         key_mgr = KeyManager()
         key = key_mgr.recover_key()
+        logger.info("CLI密钥恢复成功")
         print(f"密钥已恢复: {base64.b64encode(key).decode('utf-8')}")
     
     elif cmd == "protect_core":
@@ -597,7 +650,11 @@ def main():
         protector = CoreFileProtector(sys.argv[2])
         protector.initialize()
         results = protector.encrypt_all_core_files()
+        logger.info(f"CLI保护核心文件完成: {len(results)} 个")
         print(f"已加密 {len(results)} 个核心文件")
+    
+    else:
+        logger.warning(f"未知CLI命令: {cmd}")
 
 
 if __name__ == "__main__":

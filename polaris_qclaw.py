@@ -16,13 +16,13 @@ JSONL 每行事件类型:
   - tool_result:     工具返回结果
 """
 import json
-import logging
 import os
 from pathlib import Path
 from datetime import datetime
 from typing import Optional
 
-logger = logging.getLogger(__name__)
+from common.logger import get_logger
+logger = get_logger(__name__)
 
 # ============================================================
 # 路径配置

@@ -39,6 +39,10 @@ from rich.console import Console
 from rich.table import Table
 from rich.panel import Panel
 
+# 统一日志
+from common.logger import get_logger
+logger = get_logger(__name__)
+
 # ============== L1 SHA256 完整性校验 ==============
 REPO_ROOT = Path(__file__).parent.resolve()
 HASH_INDEX = REPO_ROOT / "hash_index.json"
@@ -322,11 +326,13 @@ class ProtocolEnforcer:
     def get_violation_report(self) -> str:
         """生成违规报告"""
         if not self.violation_log:
+            logger.info("协议层违规报告: 无违规记录")
             return "[OK] 无违规记录"
 
         report = "[WARN] 协议层违规记录：\n"
         for v in self.violation_log[-10:]:
             report += f"  [{v['time']}] {v['law']}: {v['detail']} (操作者:{v['operator']})\n"
+        logger.warning(f"协议层违规报告: {len(self.violation_log)} 条违规记录")
         return report
 
 
@@ -422,6 +428,7 @@ def create(name, entry_type, description, layer, confidence, confidence_source, 
     # ===== G006协议层实时校验 =====
     passed, violations = _protol_enforcer.validate_create(meta, content, operator)
     if not passed:
+        logger.warning(f"G006拦截创建操作: {name} (type={entry_type}, operator={operator}), 违规={violations}")
         console.print(Panel(
             f"[bold red]⚠ G006-执行层权限实时校验拦截[/bold red]\n\n"
             f"[red]创建请求被协议层拦截[/red]\n\n"
@@ -448,6 +455,7 @@ def create(name, entry_type, description, layer, confidence, confidence_source, 
     file_path.write_text(full_content, encoding="utf-8")
     _update_hash(file_path)  # L1: 写操作后自动更新SHA256索引
 
+    logger.info(f"条目创建成功: {name} (type={entry_type}, visibility={visibility}, id={entry_id[:8]})")
     console.print(Panel(
         f"[green]✓[/green] [bold]Created:[/bold] {file_path.name}\n"
         f"[dim]ID:[/dim] {entry_id}\n"
@@ -608,6 +616,7 @@ def modify(id_or_name, status, visibility, operator):
     # G006协议层实时校验
     passed, violations = _protol_enforcer.validate_modify(found[2], new_meta, operator)
     if not passed:
+        logger.warning(f"G006拦截修改操作: {current_meta.get('name')} (operator={operator}), 违规={violations}")
         console.print(Panel(
             f"[bold red]⚠ G006-执行层权限实时校验拦截[/bold red]\n\n"
             f"[red]修改请求被协议层拦截[/red]\n\n"
@@ -626,6 +635,7 @@ def modify(id_or_name, status, visibility, operator):
     found[2].write_text(full_content, encoding="utf-8")
     _update_hash(found[2])  # L1: 写操作后自动更新SHA256索引
 
+    logger.info(f"条目修改成功: {current_meta.get('name')} (changes: {changes})")
     console.print(Panel(
         f"[green]✓[/green] Modified: {current_meta.get('name')}\n" +
         "\n".join(f"  • {c}" for c in changes) +
@@ -684,6 +694,7 @@ def validate():
             if layer == 5 and status == "locked":
                 locked_layer5.append(meta.get("name"))
 
+    logger.info(f"校验结果: G005={'无违规' if not [v for v in violations if v['law']=='G005'] else '有违规'}, G007 draft={len(iron_law_entries)}条, Layer5锁定={len(locked_layer5)}条")
     console.print(f"\n[bold]G005 数据主权检查:[/bold] {'✓ 无违规' if not [v for v in violations if v['law']=='G005'] else '✗ 有违规'}")
     console.print(f"[bold]G007 思想演化专区:[/bold] 当前{len(iron_law_entries)}条draft条目（允许）")
     console.print(f"[bold]核心范式封存:[/bold] {len(locked_layer5)}条Layer5锁定条目")
@@ -811,8 +822,10 @@ def rebuild():
 
     if texts:
         collection.upsert(ids=ids, documents=texts)
+        logger.info(f"Chroma索引重建完成: {len(texts)} 条条目")
         print(f"[OK] Indexed {len(texts)} entries")
     else:
+        logger.info("Chroma索引重建: 无可索引内容")
         print("[INFO] No content to index")
 
 

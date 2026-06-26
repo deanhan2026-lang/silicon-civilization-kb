@@ -10,6 +10,10 @@ import shutil
 from pathlib import Path
 from typing import Optional, List
 
+# 日志
+from common.logger import get_logger
+logger = get_logger(__name__)
+
 # 复用 MemGuard 加密模块
 sys.path.insert(0, str(Path(__file__).parent / "memguard"))
 from crypto import FileEncryptor, KeyManager, CryptoConfig

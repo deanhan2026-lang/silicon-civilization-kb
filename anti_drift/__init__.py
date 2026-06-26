@@ -17,6 +17,10 @@ anti_drift/__init__.py
     result = run_full_pipeline(current, baseline, tags, question_id="PQ-01")
 """
 
+from common.logger import get_logger
+
+logger = get_logger(__name__)
+
 from .scene_tagger import SceneTagger, SceneTags
 from .sampler import Sampler, SamplingResult, SOUL_QUESTIONS
 from .detector import (
@@ -27,3 +31,6 @@ from .detector import (
     DEFAULT_WEIGHTS,
 )
 from .archive import Judge, Archiver, PersonalitySnapshot, run_full_pipeline
+
+logger.info("anti_drift 模块加载完成")
+logger.debug("已导出: SceneTagger, Sampler, DeviationDetector, Judge, Archiver, run_full_pipeline")

@@ -22,6 +22,10 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
+# 日志
+from common.logger import get_logger
+logger = get_logger(__name__)
+
 # Fix Windows console encoding
 if sys.platform == "win32":
     try:

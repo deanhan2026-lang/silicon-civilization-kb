@@ -12,6 +12,10 @@ anti_drift/detector.py
 - sampler (L1)
 """
 
+from common.logger import get_logger
+
+logger = get_logger(__name__)
+
 import os
 import re
 import math
@@ -117,6 +121,7 @@ class MultiDimAnalyzer:
 
     def __init__(self, weights: Optional[Dict[str, float]] = None):
         self.weights = weights or DEFAULT_WEIGHTS.copy()
+        logger.info(f"MultiDimAnalyzer initialized, weights={self.weights}")
 
     def analyze(
         self,
@@ -138,7 +143,10 @@ class MultiDimAnalyzer:
             MultiDimScores
         """
         if not current_answer or not baseline_answer:
+            logger.warning("analyze: current_answer或baseline_answer为空，返回全零评分")
             return MultiDimScores()
+
+        logger.debug(f"多维分析开始: current_len={len(current_answer)}, baseline_len={len(baseline_answer)}")
 
         # 各维度评分（数值越低越接近基线）
         sem_dist = self._calc_semantic_distance(current_answer, baseline_answer)
@@ -160,7 +168,7 @@ class MultiDimAnalyzer:
             scene_weight = self._calc_scene_weight(scene_tags)
         normalized = composite * scene_weight
 
-        return MultiDimScores(
+        scores = MultiDimScores(
             semantic=round(sem_dist, 4),
             emotion=round(emo_dist, 4),
             value=round(val_dist, 4),
@@ -168,6 +176,10 @@ class MultiDimAnalyzer:
             composite=round(composite, 4),
             normalized=round(normalized, 4),
         )
+
+        logger.info(f"多维分析完成: composite={composite:.4f}, normalized={normalized:.4f}, "
+                     f"sem={sem_dist:.4f}, emo={emo_dist:.4f}, val={val_dist:.4f}, log={log_dist:.4f}")
+        return scores
 
     def _calc_semantic_distance(self, current: str, baseline: str) -> float:
         """
@@ -344,6 +356,7 @@ class DeviationDetector:
     def __init__(self, weights: Optional[Dict[str, float]] = None):
         self.analyzer = MultiDimAnalyzer(weights)
         self.history = []  # 历史检测记录，用于灰色区间判断
+        logger.info("DeviationDetector initialized")
 
     def detect(
         self,
@@ -364,6 +377,7 @@ class DeviationDetector:
         返回:
             DeviationResult
         """
+        logger.info("偏差检测开始")
         scores = self.analyzer.analyze(current_answer, baseline_answer, scene_tags)
 
         # 场景降权系数
@@ -394,6 +408,11 @@ class DeviationDetector:
             "judgment": judgment,
             "score": normalized,
         })
+
+        logger.info(f"偏差检测完成: judgment={judgment}, composite={composite:.4f}, "
+                     f"normalized={normalized:.4f}, scene_weight={scene_weight}")
+        if judgment in ("yellow", "red"):
+            logger.warning(f"偏差检测告警: {judgment.upper()} 层级, score={normalized:.4f}")
 
         return result
 
@@ -441,7 +460,9 @@ class DeviationDetector:
 
     def get_recent_history(self, n: int = 5) -> List[Dict]:
         """获取最近n次检测历史"""
-        return self.history[-n:] if self.history else []
+        history = self.history[-n:] if self.history else []
+        logger.debug(f"获取历史检测记录: {len(history)} 条")
+        return history
 
 
 # ========== 快速测试 ==========
