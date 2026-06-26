@@ -4,6 +4,7 @@ MemGuard-GM Crypto - 数据加密模块
 实现瞬方案：AES-256加密 + 密钥分片存储
 """
 from common.logger import get_logger
+from common.config_manager import get_config
 
 logger = get_logger(__name__)
 
@@ -29,33 +30,75 @@ except ImportError:
 
 # ========== 配置 ==========
 class CryptoConfig:
-    """加密配置"""
-    # 加密数据存储
-    _ENCRYPTED_DIR_NAS = r"Z:\qclaw\memguard_encrypted"
-    _ENCRYPTED_LOCAL = str(Path(__file__).parent.parent / "data" / "memguard_encrypted")
-    ENCRYPTED_DIR = _ENCRYPTED_LOCAL if not os.path.exists("Z:") else _ENCRYPTED_DIR_NAS
-    
-    # 密钥分片存储位置（三副本）
-    KEYSHARE_LOCATIONS = {
-        'local': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_local.json"),
-        'nas': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_nas.json"),
-        'n200': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_n200.json")
-    }
-    
-    # 加密配置文件
-    _CRYPTO_CONFIG_NAS = os.path.join(_ENCRYPTED_DIR_NAS, "crypto_config.json")
-    _CRYPTO_CONFIG_LOCAL = os.path.join(_ENCRYPTED_LOCAL, "crypto_config.json")
-    CRYPTO_CONFIG = _CRYPTO_CONFIG_LOCAL if not os.path.exists("Z:") else _CRYPTO_CONFIG_NAS
-    
-    # 盐值长度
-    SALT_LENGTH = 32
-    
-    # Nonce长度（GCM模式推荐12字节）
-    NONCE_LENGTH = 12
-    
-    # 密钥分片阈值（Shamir: 需要k个分片中的t个恢复）
-    SHARE_TOTAL = 3      # 总分片数
-    SHARE_THRESHOLD = 2  # 恢复阈值
+    """
+    加密配置（从 config.yaml 加载，支持回退到默认值）
+    使用方式：CryptoConfig.ENCRYPTED_DIR（自动从配置读取）
+    """
+
+    _cache: dict = {}
+    _local_keyshare_dir: str = str(Path(__file__).parent.parent / "data" / "memguard_keys")
+    _local_encrypted_dir: str = str(Path(__file__).parent.parent / "data" / "memguard_encrypted")
+
+    def __getattr__(self, name: str):
+        if name.startswith('_') or name in ('__dict__', '__class__'):
+            raise AttributeError(name)
+        if name not in self._cache:
+            self._cache[name] = self._resolve(name)
+        return self._cache[name]
+
+    def _resolve(self, name: str):
+        """从 config.yaml 解析值，回退到硬编码默认值"""
+
+        def _local_path(path_str: str) -> str:
+            """将相对路径转为绝对路径（相对于项目根目录）"""
+            if os.path.isabs(path_str):
+                return path_str
+            return str(Path(__file__).parent.parent / path_str)
+
+        if name == 'ENCRYPTED_DIR':
+            val = get_config('memguard.encrypted_dir', None)
+            if val:
+                return val
+            # 回退：NAS 存在则用 NAS，否则用本地
+            return self._local_encrypted_dir if not os.path.exists("Z:") else r"Z:\qclaw\memguard_encrypted"
+
+        if name == 'KEYSHARE_LOCATIONS':
+            val = get_config('memguard.keyshare_locations', None)
+            if val:
+                # 配置中是相对路径，转为绝对路径
+                result = {}
+                for loc, path in val.items():
+                    result[loc] = _local_path(path)
+                return result
+            # 回退默认值
+            return {
+                'local': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_local.json"),
+                'nas': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_nas.json"),
+                'n200': str(Path(__file__).parent.parent / "data" / "memguard_keys" / "share_n200.json")
+            }
+
+        if name == 'CRYPTO_CONFIG':
+            # 跟随 ENCRYPTED_DIR
+            enc_dir = self.ENCRYPTED_DIR
+            return os.path.join(enc_dir, "crypto_config.json")
+
+        if name == 'SALT_LENGTH':
+            return 32
+
+        if name == 'NONCE_LENGTH':
+            return 12
+
+        if name == 'SHARE_TOTAL':
+            return get_config('memguard.share_total', 3)
+
+        if name == 'SHARE_THRESHOLD':
+            return get_config('memguard.share_threshold', 2)
+
+        raise AttributeError(f"CryptoConfig has no attribute '{name}'")
+
+
+# 单例实例（供模块内部直接使用 CryptoConfig.XXX）
+CryptoConfig = CryptoConfig()
 
 # ========== 数据结构 ==========
 @dataclass

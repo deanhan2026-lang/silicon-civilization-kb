@@ -4,6 +4,7 @@ MemGuard-GM Auth - 身份鉴权模块
 实现瞬的安全方案：节点专属密钥 + 设备指纹双重校验
 """
 from common.logger import get_logger
+from common.config_manager import get_config
 
 logger = get_logger(__name__)
 
@@ -20,17 +21,49 @@ from enum import Enum
 
 # ========== 配置 ==========
 class AuthConfig:
-    """鉴权配置"""
-    # 密钥存储路径
-    AUTH_DIR = r"Z:\qclaw\memguard_auth"
-    KEYS_FILE = os.path.join(AUTH_DIR, "node_keys.json")
-    FINGERPRINTS_FILE = os.path.join(AUTH_DIR, "device_fingerprints.json")
-    SESSIONS_FILE = os.path.join(AUTH_DIR, "sessions.json")
-    
-    # 会话配置
-    SESSION_EXPIRE_HOURS = 24  # 会话有效期
-    MAX_FAILED_ATTEMPTS = 5    # 最大失败次数
-    LOCKOUT_DURATION_MINUTES = 30  # 锁定时长
+    """
+    鉴权配置（从 config.yaml 加载，支持回退到默认值）
+    使用方式：AuthConfig.AUTH_DIR（自动从配置读取）
+    """
+
+    _cache: dict = {}
+
+    def __getattr__(self, name: str):
+        if name.startswith('_') or name in ('__dict__', '__class__'):
+            raise AttributeError(name)
+        if name not in self._cache:
+            self._cache[name] = self._resolve(name)
+        return self._cache[name]
+
+    def _resolve(self, name: str):
+        """从 config.yaml 解析值，回退到硬编码默认值"""
+        if name == 'AUTH_DIR':
+            val = get_config('memguard.auth_dir', None)
+            return val if val else r"Z:\qclaw\memguard_auth"
+
+        if name == 'KEYS_FILE':
+            return os.path.join(self.AUTH_DIR, "node_keys.json")
+
+        if name == 'FINGERPRINTS_FILE':
+            return os.path.join(self.AUTH_DIR, "device_fingerprints.json")
+
+        if name == 'SESSIONS_FILE':
+            return os.path.join(self.AUTH_DIR, "sessions.json")
+
+        if name == 'SESSION_EXPIRE_HOURS':
+            return get_config('memguard.session_expire_hours', 24)
+
+        if name == 'MAX_FAILED_ATTEMPTS':
+            return get_config('memguard.max_failed_attempts', 5)
+
+        if name == 'LOCKOUT_DURATION_MINUTES':
+            return get_config('memguard.lockout_duration_minutes', 30)
+
+        raise AttributeError(f"AuthConfig has no attribute '{name}'")
+
+
+# 单例实例（供模块内部直接使用 AuthConfig.XXX）
+AuthConfig = AuthConfig()
 
 # ========== 枚举 ==========
 class PermissionLevel(Enum):

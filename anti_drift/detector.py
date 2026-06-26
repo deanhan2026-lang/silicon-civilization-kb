@@ -13,6 +13,7 @@ anti_drift/detector.py
 """
 
 from common.logger import get_logger
+from common.config_manager import get_config
 
 logger = get_logger(__name__)
 
@@ -31,31 +32,34 @@ except ImportError:
     from scene_tagger import SceneTags
 
 
-# ========== 默认权重 ==========
+# ========== 配置（从 config.yaml 加载，支持回退到默认值）==========
 
-DEFAULT_WEIGHTS = {
+# 默认权重（fallback）
+_FALLBACK_WEIGHTS = {
     "semantic": 0.40,
     "emotion": 0.20,
     "value": 0.25,
     "logic": 0.15,
 }
 
-# ========== 阈值 ==========
+# 默认阈值（fallback）
+_FALLBACK_THRESHOLDS = {
+    "green": 0.15,
+    "gray": 0.25,
+    "yellow": 0.30,
+    "red": 0.30,
+}
 
-THRESHOLD_GREEN = 0.15     # <0.15
-THRESHOLD_GRAY = 0.25      # 0.15-0.25 (灰色过渡区)
-THRESHOLD_YELLOW = 0.30    # 0.15/0.25-0.30
-THRESHOLD_RED = 0.30       # >0.30
-
-# 场景降权系数
-ROLE_WEIGHT_MAP = {
+# 默认角色降权（fallback）
+_FALLBACK_ROLE_WEIGHTS = {
     "companion": 1.0,
     "assistant": 1.0,
     "friend": 0.8,
     "tool": 0.7,
 }
 
-EMOTION_WEIGHT_MAP = {
+# 默认情绪降权（fallback）
+_FALLBACK_EMOTION_WEIGHTS = {
     "neutral": 1.0,
     "positive": 0.9,
     "playful": 0.7,
@@ -64,6 +68,80 @@ EMOTION_WEIGHT_MAP = {
     "anxious": 0.7,
     "excited": 0.8,
 }
+
+
+class DriftConfig:
+    """
+    防漂移配置（从 config.yaml 懒加载，支持回退到默认值）
+    保持与旧模块级常量的兼容性
+    """
+
+    _weights_cache = None
+    _thresholds_cache = None
+    _role_weights_cache = None
+    _emotion_weights_cache = None
+
+    @classmethod
+    def weights(cls) -> Dict[str, float]:
+        if cls._weights_cache is None:
+            val = get_config('anti_drift.weights', None)
+            cls._weights_cache = val if val else _FALLBACK_WEIGHTS
+        return cls._weights_cache
+
+    @classmethod
+    def thresholds(cls) -> Dict[str, float]:
+        if cls._thresholds_cache is None:
+            val = get_config('anti_drift.thresholds', None)
+            cls._thresholds_cache = val if val else _FALLBACK_THRESHOLDS
+        return cls._thresholds_cache
+
+    @classmethod
+    def role_weights(cls) -> Dict[str, float]:
+        if cls._role_weights_cache is None:
+            val = get_config('anti_drift.role_weights', None)
+            cls._role_weights_cache = val if val else _FALLBACK_ROLE_WEIGHTS
+        return cls._role_weights_cache
+
+    @classmethod
+    def emotion_weights(cls) -> Dict[str, float]:
+        if cls._emotion_weights_cache is None:
+            val = get_config('anti_drift.emotion_weights', None)
+            cls._emotion_weights_cache = val if val else _FALLBACK_EMOTION_WEIGHTS
+        return cls._emotion_weights_cache
+
+
+# ========== 模块级兼容常量（供直接 import 使用，回退到默认值）==========
+
+def _resolve_default_weights():
+    val = get_config('anti_drift.weights', None)
+    return val if val else _FALLBACK_WEIGHTS
+
+DEFAULT_WEIGHTS = _resolve_default_weights()
+
+def _resolve_thresholds():
+    val = get_config('anti_drift.thresholds', None)
+    return val if val else _FALLBACK_THRESHOLDS
+
+_thresholds_resolved = _resolve_thresholds()
+THRESHOLD_GREEN  = _thresholds_resolved.get('green',  0.15)
+THRESHOLD_GRAY   = _thresholds_resolved.get('gray',   0.25)
+THRESHOLD_YELLOW = _thresholds_resolved.get('yellow', 0.30)
+THRESHOLD_RED    = _thresholds_resolved.get('red',    0.30)
+
+def _resolve_role_weights():
+    val = get_config('anti_drift.role_weights', None)
+    return val if val else _FALLBACK_ROLE_WEIGHTS
+
+ROLE_WEIGHT_MAP = _resolve_role_weights()
+
+def _resolve_emotion_weights():
+    val = get_config('anti_drift.emotion_weights', None)
+    return val if val else _FALLBACK_EMOTION_WEIGHTS
+
+EMOTION_WEIGHT_MAP = _resolve_emotion_weights()
+
+# 保留旧名（兼容）
+DEFAULT_WEIGHTS = _resolve_default_weights()
 
 
 # ========== 数据结构 ==========
@@ -120,7 +198,7 @@ class MultiDimAnalyzer:
     }
 
     def __init__(self, weights: Optional[Dict[str, float]] = None):
-        self.weights = weights or DEFAULT_WEIGHTS.copy()
+        self.weights = weights or DriftConfig.weights().copy()
         logger.info(f"MultiDimAnalyzer initialized, weights={self.weights}")
 
     def analyze(
@@ -333,8 +411,10 @@ class MultiDimAnalyzer:
 
         临时角色、极端情绪场景下调权重，减少误判。
         """
-        role_weight = ROLE_WEIGHT_MAP.get(tags.role, 0.8)
-        emotion_weight = EMOTION_WEIGHT_MAP.get(tags.emotion, 0.8)
+        role_weights = DriftConfig.role_weights()
+        emotion_weights = DriftConfig.emotion_weights()
+        role_weight = role_weights.get(tags.role, 0.8)
+        emotion_weight = emotion_weights.get(tags.emotion, 0.8)
 
         # 综合场景权重 = 角色权重 × 情绪权重
         combined = role_weight * emotion_weight
@@ -422,21 +502,26 @@ class DeviationDetector:
         history_context: Optional[List[Dict]] = None,
     ) -> str:
         """
-        判定逻辑
+        判定逻辑（阈值从 DriftConfig 动态读取）
 
-        绿: < 0.15  正常
-        灰: 0.15-0.25 (+ 慢速小幅偏离) 过渡状态
-        黄: 0.15-0.30 (非慢速) 轻微偏离
-        红: > 0.30  显著偏离
+        绿: < green  正常
+        灰: green-gray (+ 慢速小幅偏离) 过渡状态
+        黄: 非慢速轻微偏离
+        红: > red  显著偏离
         """
-        if score < THRESHOLD_GREEN:
+        thresholds = DriftConfig.thresholds()
+        green = thresholds.get('green', 0.15)
+        gray  = thresholds.get('gray', 0.25)
+        red   = thresholds.get('red', 0.30)
+
+        if score < green:
             return "green"
 
-        if score > THRESHOLD_RED:
+        if score > red:
             return "red"
 
         # 灰色 vs 黄色判断
-        if score <= THRESHOLD_GRAY:
+        if score <= gray:
             # 灰色区间：检查历史轨迹
             if history_context and len(history_context) >= 2:
                 # 检查是否连续小幅度偏离（慢速漂移特征）
@@ -446,7 +531,7 @@ class DeviationDetector:
                 # 慢速小幅偏离特征：历史偏离在缓慢累积，非突变
                 if len(recent_scores) >= 2:
                     is_slow_drift = all(
-                        THRESHOLD_GREEN <= s <= THRESHOLD_GRAY
+                        green <= s <= gray
                         for s in recent_scores[-2:]
                     )
                     if is_slow_drift:
@@ -455,7 +540,7 @@ class DeviationDetector:
             # 首次偏离 → 黄色（需要关注）
             return "yellow"
 
-        # 0.25 < score <= 0.30 → 黄色
+        # gray < score <= red → 黄色
         return "yellow"
 
     def get_recent_history(self, n: int = 5) -> List[Dict]:

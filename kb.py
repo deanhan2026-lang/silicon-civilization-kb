@@ -41,6 +41,8 @@ from rich.panel import Panel
 
 # 统一日志
 from common.logger import get_logger
+from common.config_manager import get_config
+
 logger = get_logger(__name__)
 
 # ============== L1 SHA256 完整性校验 ==============
@@ -78,8 +80,11 @@ def _update_hash(filepath: Path):
 
 # ============== 配置 ==============
 console = Console()
-BASE_DIR = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/knowledge-base"))
+# 从配置文件读取知识库目录
+_kb_dir = get_config("kb.dir", "knowledge-base")
+BASE_DIR = Path(os.path.expanduser(f"~/.qclaw/workspace-agent-d9479bde/{_kb_dir}"))
 KB_DIR = BASE_DIR
+HASH_INDEX = BASE_DIR / ".hash_index.json"
 
 # 实体类型
 ENTITY_TYPES = ["Concept", "Entity", "Event", "Rule", "Artifact", "Value"]

@@ -1,83 +1,98 @@
-# silicon-civilization-kb 统一配置
-# 所有模块共享根配置
-version: "1.0"
+# 硅基文明知识库 — 中心化配置文件
+# 使用方式：from common.config_manager import get_config; db_host = get_config("database.host")
 
-# ============================================================
-# 共享存储
-# ============================================================
-storage:
-  root_dir: "./data"
-  baseline_dir: "./memguard_baseline"
-  audit_dir: "./audit"
-  backup_dir: "./backup"
-  memory_dir: "./memory"
-
-# ============================================================
-# MemGuard 配置
-# ============================================================
-memguard:
-  storage:
-    baseline_dir: "./memguard_baseline"
-    memory_dir: "./memory"
-    audit_dir: "./audit"
-    backup_dir: "./backup"
-  security:
-    hash_algorithms: ["sha256", "blake3"]
-    allow_baseline_unlock: false
-  scheduler:
-    check_interval_seconds: 14400
-  server:
-    host: "0.0.0.0"
-    port: 5050
-
-# ============================================================
-# Polaris 配置
-# ============================================================
-polaris:
-  scene_tagger:
-    role_keywords_threshold: 0.3
-    emotion_keywords_threshold: 0.2
-  sampler:
-    deep_sample_interval: 20
-    light_sample_interval: 3
-    soul_question_count: 5
-  detector:
-    weights:
-      semantic: 0.40
-      lexical: 0.25
-      style: 0.20
-      emotion: 0.15
-    thresholds:
-      green: 0.10
-      gray: 0.20
-      yellow: 0.30
-      red: 0.50
-  archive:
-    archive_dir: "./polaris_archive"
-    max_records: 1000
-  server:
-    host: "0.0.0.0"
-    port: 5051
-
-# ============================================================
-# 共享日志配置
-# ============================================================
+# 日志配置
 logging:
-  level: "INFO"
-  format: "json"                    # json | text
-  memguard_log: "./logs/memguard.log"
-  polaris_log: "./logs/polaris.log"
-  audit_log: "./audit/audit.jsonl"
-  max_bytes: 10485760               # 10MB
+  level: INFO
+  file: logs/silicon-civilization-kb.log
+  max_bytes: 10485760  # 10MB
   backup_count: 5
 
-# ============================================================
-# API服务配置
-# ============================================================
+# 数据库配置
+database:
+  url: sqlite:///silicon-civilization.db
+  echo: false
+
+# 知识库配置
+kb:
+  dir: knowledge-base
+  hash_index: knowledge-base/.hash_index.json
+  auto_save: true
+
+# MemGuard 配置
+memguard:
+  enabled: true
+  keys_dir: keys
+  audit_log: logs/memguard-audit.jsonl
+  encrypted_dir: Z:\qclaw\memguard_encrypted
+  auth_dir: Z:\qclaw\memguard_auth
+  keyshare_locations:
+    local: data/memguard_keys/share_local.json
+    nas: data/memguard_keys/share_nas.json
+    n200: data/memguard_keys/share_n200.json
+  share_total: 3
+  share_threshold: 2
+  session_expire_hours: 24
+  max_failed_attempts: 5
+  lockout_duration_minutes: 30
+
+# Memory Vault 配置
+memory_vault:
+  base_dir: Z:\qclaw\memory_vault
+
+# Anti-Drift 配置
+anti_drift:
+  weights:
+    semantic: 0.4
+    emotion: 0.2
+    value: 0.25
+    logic: 0.15
+  thresholds:
+    green: 0.15
+    gray: 0.25
+    yellow: 0.30
+    red: 0.30
+  role_weights:
+    companion: 1.0
+    assistant: 1.0
+    friend: 0.8
+    tool: 0.7
+  emotion_weights:
+    neutral: 1.0
+    positive: 0.9
+    playful: 0.7
+    tired: 0.8
+    stressed: 0.7
+    anxious: 0.7
+    excited: 0.8
+
+# Polaris 配置
+polaris:
+  enabled: true
+  port: 5052
+  sampling_interval: 300  # 5 minutes
+
+# 治理架构配置
+governance:
+  protocol_dir: knowledge-base/rule
+  consensus_enabled: true
+  execution_enabled: true
+
+# API 配置
 api:
-  memguard:
-    host: "0.0.0.0"
-    port: 5050
-  polaris:
-    host: "0.0.0.0"
-    port: 5051
+  host: 0.0.0.0
+  port: 5000
+  debug: false
+
+# 跨实例通信配置
+intercom:
+  enabled: true
+  base_dir: intercom
+  flag_timeout: 300  # 5 minutes
+
+# 备份配置
+backup:
+  enabled: true
+  local_dir: backup
+  nas_dir: Z:/qclaw/backup
+  interval: 3600  # 1 hour
