@@ -19,7 +19,10 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 # 协议目录
-GOV_PROTOCOL_DIR = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/gov_protocol"))
+# CI fallback: 如果Windows路径不存在，使用repo根目录下的gov_protocol/
+_DEFAULT_PROTO = Path(os.path.expanduser("~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/gov_protocol"))
+_REPO_FALLBACK = Path(__file__).parent.parent / "gov_protocol"
+GOV_PROTOCOL_DIR = _DEFAULT_PROTO if _DEFAULT_PROTO.exists() else _REPO_FALLBACK
 
 class ProtocolRule:
     """单条治理协议规则"""
