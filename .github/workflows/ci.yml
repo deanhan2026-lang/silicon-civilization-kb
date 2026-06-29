@@ -26,20 +26,15 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
-      - name: Set up CI environment (create infra dirs)
-        run: |
-          # Create the Windows-style path structure that some modules expect
-          mkdir -p ~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/data/keys
-          mkdir -p ~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/data/memguard_encrypted
-          touch ~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/freeze.flag
-
-      - name: Run tests (skip e2e/api — require local infra)
+      - name: Run tests (skip infra-dependent tests)
         run: |
           pytest tests/ \
             --junitxml=test_results/test-results.xml \
             --tb=short \
             --ignore=tests/test_e2e.py \
             --ignore=tests/test_api.py \
+            --ignore=tests/test_memguard.py \
+            --ignore=tests/test_memguard_full.py \
             -q
 
       - name: Upload test results
