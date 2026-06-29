@@ -55,7 +55,7 @@ jobs:
         run: |
           git config --local user.name "github-actions[bot]"
           git config --local user.email "github-actions[bot]@users.noreply.github.com"
-          git add test_results/*.xml
+          git add -f test_results/*.xml
           git diff --staged --quiet || git commit -m "ci: update test results [skip ci]"
           git push
 
