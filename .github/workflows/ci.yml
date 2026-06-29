@@ -26,6 +26,11 @@ jobs:
           pip install -r requirements.txt
           pip install pytest
 
+      - name: Set up CI environment
+        run: |
+          mkdir -p ~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/
+          touch ~/.qclaw/workspace-agent-d9479bde/silicon-civilization-kb/freeze.flag
+
       - name: Run tests (skip infra-dependent tests)
         run: |
           pytest tests/ \
