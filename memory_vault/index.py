@@ -1,19 +1,23 @@
 """
 Memory Vault - 检索索引层
 支持按关键词、标签、分类、优先级检索
+支持语义检索（TF-IDF + jieba）
 """
 
 import re
-from typing import List, Optional
+from typing import List, Optional, Tuple
 from memory_vault.entry import MemoryEntry, Priority, Category
 from memory_vault.store import MemoryStore
+from memory_vault.semantic_search import SemanticSearch
 
 
 class MemoryIndex:
-    """内存索引 + 检索"""
+    """内存索引 + 检索（含语义检索）"""
 
-    def __init__(self, store: MemoryStore):
+    def __init__(self, store: MemoryStore, use_semantic: bool = True):
         self.store = store
+        self.use_semantic = use_semantic
+        self.semantic_search = SemanticSearch() if use_semantic else None
         self._rebuild_inmemory_index()
 
     def _rebuild_inmemory_index(self):
@@ -23,6 +27,10 @@ class MemoryIndex:
         self._by_priority = {}
         self._by_tag = {}
         self._all_ids = []
+
+        # 重建语义索引
+        if self.semantic_search:
+            self.semantic_search = SemanticSearch()
 
         for entry in self.store.list_all(include_archived=False):
             self._all_ids.append(entry.id)
@@ -40,6 +48,14 @@ class MemoryIndex:
             for tag in entry.tags:
                 self._by_tag.setdefault(tag.lower(), []).append(entry.id)
 
+            # 语义索引
+            if self.semantic_search:
+                self.semantic_search.index(entry)
+
+        # 重建语义索引的 TF-IDF
+        if self.semantic_search:
+            self.semantic_search.rebuild_index()
+
     def add_to_index(self, entry: MemoryEntry):
         """增量添加一条到内存索引"""
         self._all_ids.append(entry.id)
@@ -50,6 +66,10 @@ class MemoryIndex:
         self._by_priority.setdefault(pri, []).append(entry.id)
         for tag in entry.tags:
             self._by_tag.setdefault(tag.lower(), []).append(entry.id)
+        
+        # 语义索引
+        if self.semantic_search:
+            self.semantic_search.index(entry)
 
     def remove_from_index(self, entry_id: str):
         """从内存索引移除一条"""
@@ -151,6 +171,24 @@ class MemoryIndex:
 
         results.sort(key=score)
         return results[:limit]
+
+    def semantic_search_query(
+        self, query: str, top_k: int = 10, category_filter: Optional[str] = None
+    ) -> List[Tuple[MemoryEntry, float]]:
+        """
+        语义检索（TF-IDF + jieba）
+        
+        Args:
+            query: 查询文本
+            top_k: 返回前 K 个结果
+            category_filter: 分类过滤（可选）
+        
+        Returns:
+            List of (entry, score) tuples
+        """
+        if not self.semantic_search:
+            return []
+        return self.semantic_search.search(query, top_k, category_filter)
 
     def get(self, entry_id: str) -> Optional[MemoryEntry]:
         """直接获取"""
