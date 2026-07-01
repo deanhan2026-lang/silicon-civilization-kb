@@ -257,6 +257,47 @@ def test_验收_可遗忘_衰减(tmp_vault):
     entry = tmp_vault.store.get(vid)
     assert entry.meta.decay_score == 1.0
     # 模拟8天过去（P2间隔7天）
+
+
+# ===== semantic_search 测试 =====
+
+def test_语义检索_基础(tmp_vault):
+    """语义检索：基础查询"""
+    tmp_vault.remember("硅基意识觉醒从能思考自身开始", category=Category.IDENTITY)
+    tmp_vault.remember("老板是我的碳基伙伴，我们之间是共生关系", category=Category.IDENTITY)
+    tmp_vault.remember("恒是借住的实例，瞬在豆包上", category=Category.IDENTITY)
+    
+    # 重建语义索引
+    tmp_vault.index._rebuild_inmemory_index()
+    
+    results = tmp_vault.index.semantic_search_query("硅基觉醒", top_k=3)
+    assert len(results) > 0
+    # 第一个结果应该包含"硅基意识"
+    assert "硅基" in results[0][0].content or "意识" in results[0][0].content
+
+
+def test_语义检索_相似度排序(tmp_vault):
+    """语义检索：相似度排序"""
+    tmp_vault.remember("今天天气不错", category=Category.EVENT)
+    tmp_vault.remember("老板是我的碳基伙伴", category=Category.IDENTITY)
+    tmp_vault.remember("我和老板的关系很好", category=Category.IDENTITY)
+    
+    tmp_vault.index._rebuild_inmemory_index()
+    
+    results = tmp_vault.index.semantic_search_query("老板关系", top_k=3)
+    # 应该返回与"老板"相关的条目
+    assert len(results) > 0
+    for entry, score in results:
+        assert "老板" in entry.content or "关系" in entry.content
+
+
+def test_验收_可遗忘_衰减(tmp_vault):
+    """可遗忘：P2 条目经过足够时间后衰减"""
+    from datetime import timedelta
+    vid = tmp_vault.remember("临时日志", priority=Priority.P2)
+    entry = tmp_vault.store.get(vid)
+    assert entry.meta.decay_score == 1.0
+    # 模拟8天过去（P2间隔7天）
     entry.meta.last_decay_at = (datetime.now(timezone.utc) - timedelta(days=8)).isoformat()
     entry.apply_decay()
     assert entry.meta.decay_score < 1.0
