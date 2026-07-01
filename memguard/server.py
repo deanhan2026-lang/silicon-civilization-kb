@@ -16,10 +16,11 @@ from functools import wraps
 from flask import Flask, request, jsonify
 from flask_cors import CORS
 
-sys.path.insert(0, str(Path(__file__).parent))
-from core import MemGuardEngine, Config, Storage
-from sync import SyncEngine, Delta
-from auth import AuthManager, PermissionLevel, NodeType
+REPO_ROOT = Path(__file__).parent.parent.resolve()
+sys.path.insert(0, str(REPO_ROOT))
+from memguard.core import MemGuardEngine, Config, Storage
+from memguard.sync import SyncEngine, Delta
+from memguard.auth import AuthManager, PermissionLevel, NodeType
 
 # 初始化配置（必须在创建 engine 前调用）
 Config.init()
@@ -271,7 +272,7 @@ def freeze_memory(**kwargs):
 def sign_core_files(**kwargs):
     """签名所有核心文件"""
     try:
-        from integrity import SignatureManager
+        from memguard.integrity import SignatureManager
         sm = SignatureManager()
         node_id = kwargs.get('_node_id', 'admin')
         session_id = kwargs.get('_session_id')
@@ -289,7 +290,7 @@ def sign_core_files(**kwargs):
 def verify_core_files(**kwargs):
     """验证所有核心文件完整性"""
     try:
-        from integrity import SignatureManager, TrustDomainChecker
+        from memguard.integrity import SignatureManager, TrustDomainChecker
         sm = SignatureManager()
         results, tamper_records = sm.verify_all_core_files()
         return jsonify({
@@ -308,7 +309,7 @@ def verify_core_files(**kwargs):
 def get_integrity_status_api(**kwargs):
     """获取完整性状态概览"""
     try:
-        from integrity import get_integrity_status
+        from memguard.integrity import get_integrity_status
         return jsonify(get_integrity_status())
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -319,7 +320,7 @@ def get_tamper_log(**kwargs):
     """获取篡改日志"""
     try:
         import os
-        from integrity import IntegrityConfig
+        from memguard.integrity import IntegrityConfig
         if not os.path.exists(IntegrityConfig.TAMPER_LOG):
             return jsonify({'records': [], 'count': 0})
         
@@ -418,10 +419,48 @@ def test_access(memory_id):
     allowed, reason = engine.access_ctrl.check_access(memory_id, operator, operation)
     return jsonify({'memory_id': memory_id, 'operator': operator, 'operation': operation, 'allowed': allowed, 'reason': reason})
 
+@app.route('/')
+def memguard_index():
+    from flask import send_from_directory
+    return send_from_directory(str(Path(__file__).parent / 'web'), 'index.html')
+
+@app.route('/<path:path>')
+def memguard_static(path):
+    from flask import send_from_directory
+    web_dir = Path(__file__).parent / 'web'
+    f = web_dir / path
+    if f.exists():
+        return send_from_directory(str(web_dir), path)
+    return send_from_directory(str(web_dir), 'index.html')
+
 @app.route('/health')
 def health_check():
     """Health check endpoint for monitoring"""
     return jsonify({'status': 'healthy', 'service': 'MemGuard-GM', 'version': '2.1'}), 200
+
+
+
+@app.route('/polaris/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def polaris_proxy(path):
+    """Reverse proxy to Polaris SaaS (port 5052)"""
+    from flask import request
+    from urllib.request import urlopen, Request
+    from urllib.error import HTTPError
+    target_url = 'http://127.0.0.1:5052/' + path
+    headers = {k: v for k, v in request.headers if k.lower() != 'host'}
+    try:
+        if request.method in ('POST', 'PUT'):
+            data = request.get_data()
+            req = Request(target_url, data=data, headers=headers, method=request.method)
+        else:
+            req = Request(target_url, headers=headers, method=request.method)
+        resp = urlopen(req, timeout=10)
+        return resp.read(), resp.status, resp.headers.items()
+    except HTTPError as e:
+        return e.read(), e.code, {'Content-Type': 'application/json'}
+    except Exception as e:
+        return '{"error": "' + str(e) + '"}', 502, {'Content-Type': 'application/json'}
+
 
 @app.errorhandler(404)
 def not_found(e):
@@ -441,7 +480,7 @@ if __name__ == '__main__':
     
     # 启动时验证核心文件完整性
     try:
-        from integrity import SignatureManager
+        from memguard.integrity import SignatureManager
         sm = SignatureManager()
         results, tamper_records = sm.verify_all_core_files()
         if tamper_records:

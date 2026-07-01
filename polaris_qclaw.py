@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import sys, io
+sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8")
+sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding="utf-8")
 """
 Polaris v1.2 — QClaw Session Reader
 读取 QClaw session JSONL 文件，还原对话文本供 Polaris 漂移检测使用
@@ -16,6 +19,7 @@ JSONL 每行事件类型:
   - tool_result:     工具返回结果
 """
 import json
+import logging
 import os
 from pathlib import Path
 from datetime import datetime

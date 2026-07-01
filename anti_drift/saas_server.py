@@ -32,6 +32,10 @@ def index():
 
 @app.route('/<path:path>')
 def static_files(path):
+    # Don't intercept API routes
+    if path.startswith('api/'):
+        from flask import abort
+        abort(404)
     f = WEB_DIR / path
     if f.exists():
         return send_from_directory(str(WEB_DIR), path)

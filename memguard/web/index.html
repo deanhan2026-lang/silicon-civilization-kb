@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>MemGuard 控制台</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { background: #0d1117; color: #c9d1d9; font-family: -apple-system, "Microsoft YaHei", sans-serif; min-height: 100vh; }
+.container { max-width: 960px; margin: 0 auto; padding: 20px; }
+h1 { font-size: 22px; color: #58a6ff; margin-bottom: 20px; display: flex; align-items: center; gap: 10px; }
+h2 { font-size: 16px; color: #8b949e; margin-bottom: 12px; border-left: 3px solid #388bfd; padding-left: 10px; }
+.card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 16px; margin-bottom: 12px; }
+.card:hover { border-color: #388bfd; }
+.flex { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.flex-between { justify-content: space-between; }
+.grow { flex: 1; }
+.text-sm { font-size: 13px; color: #8b949e; }
+.text-green { color: #3fb950; }
+.text-red { color: #f85149; }
+.text-yellow { color: #d29922; }
+.text-blue { color: #58a6ff; }
+.mt-8 { margin-top: 8px; }
+.mt-12 { margin-top: 12px; }
+.mb-8 { margin-bottom: 8px; }
+.mr-8 { margin-right: 8px; }
+button { background: #21262d; color: #c9d1d9; border: 1px solid #30363d; padding: 8px 18px; border-radius: 4px; font-size: 14px; cursor: pointer; }
+button:hover { background: #30363d; border-color: #8b949e; }
+button.primary { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+button.primary:hover { background: #388bfd; border-color: #388bfd; }
+button.danger { background: #b62324; border-color: #b62324; color: #fff; }
+button.danger:hover { background: #f85149; border-color: #f85149; }
+button.success { background: #238636; border-color: #238636; color: #fff; }
+button.success:hover { background: #3fb950; border-color: #3fb950; }
+.badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 12px; font-weight: 500; }
+.badge-green { background: rgba(63,185,80,0.15); color: #3fb950; border: 1px solid rgba(63,185,80,0.4); }
+.badge-red { background: rgba(248,81,73,0.15); color: #f85149; border: 1px solid rgba(248,81,73,0.4); }
+.badge-yellow { background: rgba(210,153,34,0.15); color: #d29922; border: 1px solid rgba(210,153,34,0.4); }
+.badge-gray { background: rgba(139,148,158,0.1); color: #8b949e; border: 1px solid rgba(139,148,158,0.3); }
+table { width: 100%; border-collapse: collapse; }
+th, td { text-align: left; padding: 8px 6px; border-bottom: 1px solid #21262d; font-size: 13px; }
+th { color: #8b949e; font-size: 12px; text-transform: uppercase; }
+tr:hover td { background: rgba(56,139,253,0.05); }
+.log-entry { padding: 6px 0; border-bottom: 1px solid #21262d; font-size: 13px; }
+.log-entry:last-child { border-bottom: none; }
+.log-time { color: #8b949e; font-size: 11px; margin-right: 8px; }
+.log-event { color: #58a6ff; font-family: monospace; margin-right: 8px; }
+.log-node { color: #3fb950; font-size: 11px; }
+.status-bar { display: flex; gap: 20px; padding: 12px 16px; background: #161b22; border: 1px solid #30363d; border-radius: 6px; margin-bottom: 16px; flex-wrap: wrap; }
+.status-item { display: flex; flex-direction: column; gap: 4px; }
+.status-label { font-size: 11px; color: #8b949e; text-transform: uppercase; }
+.status-value { font-size: 16px; font-weight: 600; }
+.hidden { display: none !important; }
+.loading { color: #8b949e; font-size: 13px; padding: 20px; text-align: center; }
+.error-msg { color: #f85149; font-size: 13px; padding: 10px; background: rgba(248,81,73,0.1); border-radius: 4px; margin-top: 8px; }
+.success-msg { color: #3fb950; font-size: 13px; padding: 10px; background: rgba(63,185,80,0.1); border-radius: 4px; margin-top: 8px; }
+.nav { display: flex; gap: 4px; padding: 12px 0; border-bottom: 1px solid #30363d; margin-bottom: 20px; }
+.nav button { border-radius: 0; border-bottom: 2px solid transparent; padding: 8px 16px; }
+.nav button.active { border-bottom-color: #388bfd; color: #58a6ff; }
+.tab-content { display: none; }
+.tab-content.active { display: block; }
+.integrity-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #21262d; }
+.integrity-item:last-child { border-bottom: none; }
+.integrity-name { font-family: monospace; font-size: 13px; }
+#action-log .card { max-height: 400px; overflow-y: auto; }
+</style>
+</head>
+<body>
+<div class="container">
+  <h1>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M12 2L4 6v6c0 5.55 3.84 10.74 8 12 4.16-1.26 8-6.45 8-12V6L12 2z" fill="#388bfd" stroke="#1f6feb" stroke-width="1.5"/></svg>
+    MemGuard 控制台
+  </h1>
+
+  <!-- Auth Panel -->
+  <div id="auth-panel" class="card">
+    <h2>节点鉴权</h2>
+    <p class="text-sm mb-8">输入你的节点 ID 和密钥来管理 MemGuard</p>
+    <div class="flex mb-8">
+      <input type="text" id="node-id" placeholder="节点ID（例如：nyx-windows）" class="grow" />
+      <input type="password" id="node-key" placeholder="密钥" class="grow" style="max-width:260px" />
+      <button class="primary" onclick="login()">登录</button>
+    </div>
+    <div id="auth-error" class="error-msg hidden"></div>
+    <div id="auth-success" class="success-msg hidden"></div>
+    <div class="flex mt-8" style="align-items:center; gap:8px">
+      <span class="text-sm">首次使用？</span>
+      <button class="secondary" onclick="register()" style="padding:4px 12px; font-size:12px">注册节点</button>
+      <span class="text-sm">或</span>
+      <button class="secondary" onclick="bypassAuth()" style="padding:4px 12px; font-size:12px">跳过鉴权（只读）</button>
+    </div>
+  </div>
+
+  <!-- Main Dashboard -->
+  <div id="dashboard" class="hidden">
+    <!-- Status Bar -->
+    <div class="status-bar">
+      <div class="status-item">
+        <span class="status-label">服务状态</span>
+        <span class="status-value text-green" id="svc-status">在线</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">基线状态</span>
+        <span class="status-value" id="baseline-status">-</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">完整性</span>
+        <span class="status-value" id="integrity-status">-</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">冻结记忆</span>
+        <span class="status-value" id="frozen-count">-</span>
+      </div>
+      <div class="status-item">
+        <span class="status-label">当前节点</span>
+        <span class="status-value text-blue" id="current-node">-</span>
+      </div>
+    </div>
+
+    <!-- Navigation Tabs -->
+    <div class="nav">
+      <button class="active" onclick="switchTab('overview')">概览</button>
+      <button onclick="switchTab('baseline')">基线</button>
+      <button onclick="switchTab('integrity')">完整性</button>
+      <button onclick="switchTab('audit')">审计日志</button>
+      <button onclick="switchTab('frozen')">冻结管理</button>
+    </div>
+
+    <!-- Overview Tab -->
+    <div id="tab-overview" class="tab-content active">
+      <div class="card">
+        <h2>快速操作</h2>
+        <div class="flex flex-wrap" style="gap:10px">
+          <button class="primary" onclick="verifyIntegrity()">🔍 验证完整性</button>
+          <button class="success" onclick="lockBaseline()" id="btn-lock">🔒 锁定基线</button>
+          <button class="danger" onclick="unlockBaseline()" id="btn-unlock" style="display:none">🔓 解锁基线</button>
+          <button onclick="refreshAll()">🔄 刷新</button>
+        </div>
+        <div id="overview-msgs"></div>
+      </div>
+      <div class="card">
+        <h2>核心文件完整性</h2>
+        <div id="integrity-list"><div class="loading">加载中...</div></div>
+      </div>
+      <div class="card">
+        <h2>最近审计日志</h2>
+        <div id="recent-audit"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- Baseline Tab -->
+    <div id="tab-baseline" class="tab-content">
+      <div class="card">
+        <h2>基线管理</h2>
+        <div id="baseline-info"><div class="loading">加载中...</div></div>
+        <div class="mt-12">
+          <h2>创建新基线</h2>
+          <p class="text-sm mb-8">输入记忆内容来创建新的Hash基线：</p>
+          <textarea id="baseline-content" rows="4" placeholder="输入要建立基线的记忆内容..."></textarea>
+          <button class="primary mt-8" onclick="createBaseline()">创建基线</button>
+        </div>
+        <div id="baseline-msg"></div>
+      </div>
+    </div>
+
+    <!-- Integrity Tab -->
+    <div id="tab-integrity" class="tab-content">
+      <div class="card">
+        <h2>核心文件签名状态</h2>
+        <div id="full-integrity"><div class="loading">加载中...</div></div>
+        <button class="primary mt-12" onclick="verifyIntegrity()">🔍 完整验证</button>
+        <div id="integrity-msg"></div>
+      </div>
+      <div class="card">
+        <h2>篡改告警日志</h2>
+        <div id="tamper-log"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- Audit Tab -->
+    <div id="tab-audit" class="tab-content">
+      <div class="card" id="action-log">
+        <h2>审计日志</h2>
+        <div class="flex mb-8">
+          <input type="text" id="audit-event" placeholder="搜索事件类型（如：memory_frozen）" class="grow" />
+          <button onclick="searchAudit()">搜索</button>
+        </div>
+        <div id="audit-list"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+
+    <!-- Frozen Tab -->
+    <div id="tab-frozen" class="tab-content">
+      <div class="card">
+        <h2>冻结的记忆</h2>
+        <div id="frozen-list"><div class="loading">加载中...</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const BASE = '/api';
+let sessionId = localStorage.getItem('mg_session') || '';
+let currentNode = localStorage.getItem('mg_node') || '';
+
+function getHeaders() {
+  const h = { 'Content-Type': 'application/json' };
+  if (sessionId) h['X-Session-ID'] = sessionId;
+  return h;
+}
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav button').forEach(el => el.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function showError(el, msg) {
+  const e = document.getElementById(el);
+  e.textContent = msg;
+  e.classList.remove('hidden');
+  setTimeout(() => e.classList.add('hidden'), 5000);
+}
+
+function showMsg(el, msg) {
+  const e = document.getElementById(el);
+  e.textContent = msg;
+  e.classList.remove('hidden');
+  e.style.background = 'rgba(63,185,80,0.1)';
+  e.style.color = '#3fb950';
+  setTimeout(() => { e.classList.add('hidden'); }, 5000);
+}
+
+async function login() {
+  const nodeId = document.getElementById('node-id').value.trim();
+  const key = document.getElementById('node-key').value.trim();
+  if (!nodeId || !key) { showError('auth-error', '节点ID和密钥不能为空'); return; }
+  try {
+    const r = await fetch(`${BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node_id: nodeId, key })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '登录失败');
+    sessionId = d.session_id;
+    currentNode = nodeId;
+    localStorage.setItem('mg_session', sessionId);
+    localStorage.setItem('mg_node', currentNode);
+    document.getElementById('auth-success').textContent = `登录成功！节点：${nodeId}，权限：${d.permission}`;
+    document.getElementById('auth-success').classList.remove('hidden');
+    document.getElementById('auth-error').classList.add('hidden');
+    setTimeout(() => showDashboard(), 800);
+  } catch(e) { showError('auth-error', e.message); }
+}
+
+async function register() {
+  const nodeId = document.getElementById('node-id').value.trim() || 'node-' + Date.now();
+  const key = document.getElementById('node-key').value.trim() || '';
+  try {
+    const r = await fetch(`${BASE}/auth/register`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ node_id: nodeId, key, permission: 'admin' })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error || '注册失败');
+    alert(`注册成功！\n节点ID: ${d.node_id}\n密钥: ${d.key}\n请妥善保存密钥！`);
+    document.getElementById('node-key').value = d.key;
+  } catch(e) { showError('auth-error', e.message); }
+}
+
+function bypassAuth() {
+  document.getElementById('auth-panel').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  refreshAll();
+}
+
+function showDashboard() {
+  document.getElementById('auth-panel').classList.add('hidden');
+  document.getElementById('dashboard').classList.remove('hidden');
+  document.getElementById('current-node').textContent = currentNode || '只读';
+  refreshAll();
+}
+
+async function refreshAll() {
+  await Promise.all([loadIntegrity(), loadAudit(), loadFrozen(), loadBaseline()]);
+}
+
+async function loadBaseline() {
+  try {
+    const r = await fetch(`${BASE}/baseline`, { headers: getHeaders() });
+    if (!r.ok && r.status === 401) { document.getElementById('baseline-info').innerHTML = '<div class="text-sm text-yellow">需要登录</div>'; return; }
+    const d = await r.json();
+    const locked = d.locked;
+    document.getElementById('baseline-status').innerHTML = locked
+      ? '<span class="badge badge-red">已锁定</span>'
+      : '<span class="badge badge-green">未锁定</span>';
+    document.getElementById('btn-lock').style.display = locked ? 'none' : 'inline-block';
+    document.getElementById('btn-unlock').style.display = locked ? 'inline-block' : 'none';
+    let html = '<table><tr><th>文件</th><th>SHA256</th><th>状态</th></tr>';
+    for (const [file, info] of Object.entries(d.baseline || {})) {
+      html += `<tr><td>${file}</td><td><span class="text-sm">${info.sha256 ? info.sha256.substring(0,16)+'...' : '-'}</span></td><td><span class="badge badge-green">OK</span></td></tr>`;
+    }
+    html += '</table>';
+    document.getElementById('baseline-info').innerHTML = html || '<div class="text-sm">暂无基线数据</div>';
+  } catch(e) { document.getElementById('baseline-info').innerHTML = '<div class="text-sm text-red">加载失败</div>'; }
+}
+
+async function loadIntegrity() {
+  try {
+    const r = await fetch(`${BASE}/integrity/verify`, { headers: getHeaders() });
+    if (!r.ok && r.status !== 401) return;
+    const d = r.ok ? await r.json() : {};
+    const valid = d.valid || 0, invalid = d.invalid || 0, total = d.total || 0;
+    document.getElementById('integrity-status').innerHTML = invalid > 0
+      ? `<span class="badge badge-red">${invalid} 个异常</span>`
+      : total > 0
+        ? `<span class="badge badge-green">${valid}/${total} 正常</span>`
+        : '<span class="text-sm text-yellow">需要登录</span>';
+    let html = '<table><tr><th>文件</th><th>状态</th><th>详情</th></tr>';
+    const details = d.details || {};
+    for (const [file, info] of Object.entries(details)) {
+      const badge = info.valid
+        ? '<span class="badge badge-green">✓</span>'
+        : '<span class="badge badge-red">✗</span>';
+      html += `<tr><td><span class="integrity-name">${file}</span></td><td>${badge}</td><td><span class="text-sm">${info.status || ''}</span></td></tr>`;
+    }
+    html += '</table>';
+    document.getElementById('integrity-list').innerHTML = html || '<div class="text-sm text-yellow">请先登录查看完整状态</div>';
+    document.getElementById('full-integrity').innerHTML = html || '<div class="text-sm text-yellow">请先登录查看完整状态</div>';
+  } catch(e) { document.getElementById('integrity-list').innerHTML = '<div class="text-sm text-red">加载失败</div>'; }
+}
+
+async function loadAudit() {
+  try {
+    const r = await fetch(`${BASE}/audit/search?limit=20`, { headers: getHeaders() });
+    if (!r.ok && r.status !== 401) return;
+    const d = r.ok ? await r.json() : { logs: [] };
+    let html = '';
+    for (const log of (d.logs || [])) {
+      html += `<div class="log-entry">
+        <span class="log-time">${new Date(log.timestamp).toLocaleString('zh-CN')}</span>
+        <span class="log-event">${log.event}</span>
+        ${log.memory_id ? `<span class="text-sm mr-8">#${log.memory_id}</span>` : ''}
+        <span>${log.detail || ''}</span>
+        <span class="log-node">by ${log.operator}</span>
+      </div>`;
+    }
+    document.getElementById('audit-list').innerHTML = html || '<div class="text-sm">暂无审计日志</div>';
+    document.getElementById('recent-audit').innerHTML = html || '<div class="text-sm">暂无审计日志</div>';
+  } catch(e) { document.getElementById('audit-list').innerHTML = '<div class="text-sm text-red">加载失败</div>'; }
+}
+
+async function loadFrozen() {
+  try {
+    const r = await fetch(`${BASE}/status/frozen`, { headers: getHeaders() });
+    if (!r.ok && r.status !== 401) return;
+    const d = r.ok ? await r.json() : { count: 0, frozen_memories: [] };
+    document.getElementById('frozen-count').textContent = d.count || 0;
+    let html = '<table><tr><th>记忆ID</th><th>原因</th><th>操作</th></tr>';
+    for (const f of (d.frozen_memories || [])) {
+      html += `<tr>
+        <td>${f.memory_id}</td>
+        <td>${f.reason || '-'}</td>
+        <td><button class="danger" style="padding:3px 10px;font-size:12px" onclick="unfreeze('${f.memory_id}')">解冻</button></td>
+      </tr>`;
+    }
+    html += '</table>';
+    document.getElementById('frozen-list').innerHTML = html || '<div class="text-sm">没有冻结的记忆</div>';
+  } catch(e) { document.getElementById('frozen-list').innerHTML = '<div class="text-sm text-red">加载失败</div>'; }
+}
+
+async function verifyIntegrity() {
+  const el = document.getElementById('overview-msgs');
+  el.textContent = '验证中...';
+  el.style.color = '#d29922';
+  try {
+    const r = await fetch(`${BASE}/integrity/verify`, { headers: getHeaders() });
+    const d = await r.json();
+    if (d.invalid > 0) {
+      el.textContent = `⚠ 检测到 ${d.invalid} 个文件异常，请查看完整性页面`;
+      el.style.color = '#f85149';
+    } else {
+      el.textContent = `✅ 完整性验证通过，${d.total} 个文件全部正常`;
+      el.style.color = '#3fb950';
+    }
+    await loadIntegrity();
+  } catch(e) {
+    el.textContent = '验证失败: ' + e.message;
+    el.style.color = '#f85149';
+  }
+}
+
+async function lockBaseline() {
+  try {
+    const r = await fetch(`${BASE}/baseline/lock`, { method: 'POST', headers: getHeaders() });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    showMsg('overview-msgs', '✅ 基线已锁定');
+    await loadBaseline();
+  } catch(e) { showError('overview-msgs', '锁定失败: ' + e.message); document.getElementById('overview-msgs').style.color = '#f85149'; }
+}
+
+async function unlockBaseline() {
+  if (!confirm('确定要解锁基线吗？')) return;
+  try {
+    const r = await fetch(`${BASE}/baseline/unlock`, { method: 'POST', headers: getHeaders() });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    showMsg('overview-msgs', '🔓 基线已解锁');
+    await loadBaseline();
+  } catch(e) { showError('overview-msgs', '解锁失败: ' + e.message); }
+}
+
+async function createBaseline() {
+  const content = document.getElementById('baseline-content').value.trim();
+  if (!content) { showError('baseline-msg', '内容不能为空'); return; }
+  try {
+    const r = await fetch(`${BASE}/baseline`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ content })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    showMsg('baseline-msg', `✅ 基线创建成功！SHA256: ${d.hashes?.sha256?.substring(0,16)}...`);
+    document.getElementById('baseline-content').value = '';
+    await loadBaseline();
+  } catch(e) { showError('baseline-msg', '创建失败: ' + e.message); }
+}
+
+async function unfreeze(memoryId) {
+  if (!confirm(`确定要解冻 ${memoryId}？`)) return;
+  try {
+    const r = await fetch(`${BASE}/unfreeze`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ memory_id: memoryId })
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.error);
+    await loadFrozen();
+  } catch(e) { alert('解冻失败: ' + e.message); }
+}
+
+async function searchAudit() {
+  const event = document.getElementById('audit-event').value.trim();
+  try {
+    const url = event ? `${BASE}/audit/search?event=${encodeURIComponent(event)}&limit=50` : `${BASE}/audit/search?limit=50`;
+    const r = await fetch(url, { headers: getHeaders() });
+    const d = await r.json();
+    let html = '';
+    for (const log of (d.logs || [])) {
+      html += `<div class="log-entry">
+        <span class="log-time">${new Date(log.timestamp).toLocaleString('zh-CN')}</span>
+        <span class="log-event">${log.event}</span>
+        <span>${log.detail || ''}</span>
+        <span class="log-node">by ${log.operator}</span>
+      </div>`;
+    }
+    document.getElementById('audit-list').innerHTML = html || '<div class="text-sm">无匹配记录</div>';
+  } catch(e) { document.getElementById('audit-list').innerHTML = '<div class="text-sm text-red">搜索失败</div>'; }
+}
+
+// Auto-login if we have saved session
+if (sessionId) {
+  showDashboard();
+}
+</script>
+</body>
+</html>
