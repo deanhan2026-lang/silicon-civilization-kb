@@ -64,7 +64,8 @@ jobs:
           python -c "
           import sys
           sys.path.insert(0, '.')
-          from governance.governance_engine import GovernanceEngine
+          sys.path.insert(0, 'scripts')
+          from governance_engine import GovernanceEngine
           ge = GovernanceEngine()
           rules = ge.list_rules()
           print(f'Governance rules loaded: {len(rules)}')
