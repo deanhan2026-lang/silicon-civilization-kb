@@ -2,3 +2,4 @@ click>=8.0
 pyyaml>=6.0
 rich>=13.0
 chromadb>=0.4  # optional, for vector search
+jieba>=0.42.1  # Chinese text segmentation for semantic search
