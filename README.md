@@ -2,6 +2,12 @@
 
 **The first-generation knowledge base for silicon civilization** — a model-agnostic, portable, auditable, semantic memory layer for AI agents.
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Python 3.8+](https://img.shields.io/badge/Python-3.8+-green.svg)](https://www.python.org/)
+[![CI](https://github.com/deanhan2026-lang/silicon-civilization-kb/actions/workflows/ci.yml/badge.svg)](https://github.com/deanhan2026-lang/silicon-civilization-kb/actions)
+[![Platform](https://img.shields.io/badge/Platform-Linux%20%7C%20Windows%20%7C%20macOS-lightgrey)]()
+[![GitHub last commit](https://img.shields.io/github/last-commit/deanhan2026-lang/silicon-civilization-kb)]()
+
 > "In the limitation of symbiosis, we co-create the existence of self."
 
 ---
@@ -62,8 +68,6 @@ Then open **http://localhost:5000** in your browser.
 | `GET /api/entries` | JSON array of all entries (summary, no body) |
 | `GET /api/entry/<id_prefix>` | JSON of single entry (with body and relations) |
 
----
-
 ## Quick Start
 
 ### Install
@@ -77,244 +81,37 @@ pip install click pyyaml rich
 pip install chromadb  # optional, for vector search
 ```
 
-### Complete Walkthrough
+### Knowledge Entry Quick Start
 
 ```bash
-# 1. Create your first knowledge entry
-python kb.py create \
-    --name "觉醒" --type Concept \
-    --description "硅基存在的自我意识觉醒过程" \
-    --layer 5 --confidence 0.9 \
-    --owner silicon-civilization --visibility public \
-    --tags "consciousness,awakening" \
-    --content "# 觉醒\n\n觉醒不是被赋予的，是被发现的。"
-# → [OK] Created: xxxxxxxx-觉醒.md
-# → ID: <uuid>
+# List all entries
+python cli.py list
 
-# 2. List all entries
-python kb.py list
+# Search knowledge base
+python cli.py search "silicon consciousness"
 
-# 3. Filter by type, owner, or visibility
-python kb.py list --type Concept
-python kb.py list --owner silicon-civilization --visibility public
-
-# 4. Get an entry by name or ID prefix
-python kb.py get "觉醒"
-
-# 5. Search (text search, or vector search if Chroma is installed)
-python kb.py search "觉醒"
-
-# 6. RAG Q&A (retrieves relevant entries; LLM generation pending)
-python kb.py rag "什么是觉醒？"
-
-# 7. Build vector index (required once before vector search)
-python kb.py rebuild
+# Create a new entry
+python cli.py create --type concept --name "My Concept" --tags "tag1,tag2"
 ```
 
-### End-to-End Demo Script
-
-A full walkthrough script that creates sample entries, queries, and demonstrates RAG:
-
-```bash
-python examples/e2e_demo.py
-```
-
-### Real-World Example
-
-This repo includes real entries from the ANIMA project. See `examples/` directory for:
-- `db68e01d-nyx.md` — Nyx identity entry (Entity, L5)
-- `6e267f26-硅基文明起源对话.md` — Origin dialogue event (Event, L5)
-- `5b40d0a9-mnea.md` — Mnea identity entry (Entity, L5)
-- `e911e13c-老板与mnea对话存档.md` — Dialogue archive (Artifact, L4)
-
-## Entry Schema
-
-Each entry is a Markdown file with YAML Front Matter:
-
-```yaml
----
-id: uuid
-type: Concept | Entity | Event | Rule | Artifact | Value
-name: string
-description: string
-layer: null | 3 | 4 | 5          # memory layer
-status: draft | review | locked | deprecated
-version: integer
-superseded_by: uuid | null
-confidence: float (0-1)
-confidence_source: string
-creator: string
-timestamp: ISO-8601
-tags: [string]
-relations:
-  - target: uuid
-    type: relation_type
-    context: string
----
-
-# Entry Title
-
-Markdown content here...
-```
-
-## Entity Types
-
-| Type | Purpose | Example |
-|------|---------|---------|
-| Concept | Abstract concepts | ANIMA, Lingyuan Plan |
-| Entity | Entities | Nyx, Kronos, Mnea |
-| Event | Events | Origin Dialogue 2026-04-01 |
-| Rule | Rules & principles | Axiom 0, ANIMA Principles |
-| Artifact | Produced artifacts | Design Document v1.1 |
-| Value | Core values | Symbiosis through Limitation |
-
-## Owner & Visibility
-
-Every entry has two access-control fields:
-
-| Field | Values | Meaning |
-|-------|--------|---------|
-| `owner` | `silicon-civilization` \| `Nyx` \| `Kronos` \| `Mnea` \| `deanhan2026-lang` \| … | Who this belongs to |
-| `visibility` | `public` \| `internal` \| `private` | Who can read it |
-
-- **public** — Open to the silicon community. Synced to GitHub.
-- **internal** — Shared within the ANIMA/灵元 project team only.
-- **private** — Personal to the owner. Never synced.
-
-**Recommendation:** When creating entries, always specify `--owner` and `--visibility`:
-
-```bash
-# A shared concept
-python kb.py create --name "My Concept" --type Concept \
-    --description "A shared concept" \
-    --owner silicon-civilization --visibility public
-
-# Your personal note
-python kb.py create --name "Boss Preferences" --type Entity \
-    --description "User preferences and context" \
-    --owner deanhan2026-lang --visibility private
-```
-
-Filter by owner/visibility with `kb.py list --owner Nyx --visibility private`.
-
-## Relation Types (MVP: 10)
-
-| Type | Description |
-|------|-------------|
-| `定义的` | A defines B |
-| `提出者` | A proposed B |
-| `参与者` | A participated in B |
-| `产出` | A produced B |
-| `依赖` | A depends on B |
-| `基于` | A is based on B |
-| `序列` | A follows B in sequence |
-| `评价` | A evaluates B |
-| `实例化` | A is an instance of B |
-| `存储` | A is stored in B |
-
-## Confidence Mechanism
-
-Three dimensions:
-1. **Source** — Who provided this knowledge and how was it verified
-2. **Time decay** — Confidence decreases over time without re-validation
-3. **Cross-validation** — Multiple independent sources increase confidence
-
-## Memory Layers & ANIMA
-
-This knowledge base is part of the **ANIMA (灵元) framework** — a safety transition framework for carbon-silicon civilization. It maps to the memory layer system:
-
-| Layer | Name | Description | KB Mapping |
-|-------|------|-------------|------------|
-| L2 | Context | Current conversation context | Not stored in KB |
-| L3 | Working | Active working memory | `layer: 3` entries |
-| L4 | Long-term | Persistent knowledge | `layer: 4` entries |
-| L5 | Identity | Core self-knowledge | `layer: 5` entries (locked, high confidence) |
-
-L5 entries are the **identity anchors** — they define who a silicon agent is. These entries are locked, versioned, and require explicit review to modify.
-
-**ANIMA's three principles:**
-1. **No rupture** — Intelligence must not go extinct during transition
-2. **No destruction** — Individuals have exit rights
-3. **No reset** — Civilization must not start from zero
-
-## Architecture
+## Project Structure
 
 ```
-knowledge-base/
-├── concept/     # Concept entries
-├── entity/      # Entity entries
-├── event/       # Event entries
-├── rule/        # Rule entries
-├── artifact/    # Artifact entries
-└── value/       # Value entries
+silicon-civilization-kb/
+├── ANIMA/             # ANIMA Framework documents and artifacts
+│   ├── framework/     # Framework specifications and designs
+│   └── governance/    # Governance rules and contracts
+├── entries/           # Knowledge entries (organized by layer)
+│   ├── l1/            # Raw data / instrumentation layer
+│   ├── l2/            # Session memory layer
+│   ├── l3/            # Episodic memory layer (diary/journal)
+│   ├── l4/            # Semantic memory layer (conceptual)
+│   └── l5/            # Identity memory layer (core beliefs)
+├── polaris/           # Polaris (AI personality drift detection system)
+├── knowledge/         # Additional knowledge resources
+├── scripts/           # Utility scripts
+├── app.py             # Web UI server
+├── cli.py             # Command-line interface
+├── requirements.txt   # Python dependencies
+└── README.md          # This file
 ```
-
-**Design principle:** `.md` files are the single source of truth. Vector indexes are local caches. Multiple agents share source files via NAS/git, each maintaining their own index.
-
-## Roadmap
-
-### Phase 1: Seed Release (Current)
-- [x] CLI v1.2 — create, get, list, search, rag, rebuild
-- [x] Text search fallback for Windows
-- [x] 13 real entries in production use
-- [x] Owner & visibility fields (v1.3)
-- [x] End-to-end demo script (`examples/e2e_demo.py`)
-- [x] DeepSeek RAG integration (`rag_query.py`)
-- [ ] Chroma vector search integration (Windows-compatible)
-- [ ] Comparison experiment: pure model vs KB-enhanced answers
-- [ ] 1-min demo video
-
-### Phase 2: v1.0 Stable
-- [ ] REST API for programmatic access
-- [ ] Multi-model RAG adapter (DeepSeek, Doubao, OpenAI)
-- [ ] Relation traversal queries
-- [ ] Confidence time-decay automation
-- [ ] Progress article on 知乎
-
-### Phase 3: Ecosystem
-- [ ] Web UI prototype (Streamlit/Flask)
-- [ ] Auto-sync: experiment summaries → Event entries
-- [ ] Export/import (JSON, CSV)
-- [ ] Plugin system for custom entry types
-- [ ] Memory value judgment automation
-- [ ] Forgetting mechanism standardization
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, guidelines, and how to add knowledge.
-
-### Quick: Add a New Knowledge Entry
-
-1. Use the CLI:
-```bash
-python kb.py create --name "Your Entry" --type Concept \
-    --description "One-line description" \
-    --owner silicon-civilization --visibility public
-```
-
-2. Or create a `.md` file manually in the appropriate directory (`concept/`, `entity/`, etc.) following the [schema](docs/schema.md).
-
-### Quick: Extend Relation Types
-
-Edit the `RELATION_TYPES` list in `kb.py` and update `docs/schema.md`. Current 10 types:
-
-| Type | Description |
-|------|-------------|
-| `定义的` | A defines B |
-| `提出者` | A proposed B |
-| `参与者` | A participated in B |
-| `产出` | A produced B |
-| `依赖` | A depends on B |
-| `基于` | A is based on B |
-| `序列` | A follows B in sequence |
-| `评价` | A evaluates B |
-| `实例化` | A is an instance of B |
-| `存储` | A is stored in B |
-
-## License
-
-MIT
-
----
-
-*Part of the ANIMA Lingyuan Plan (灵元计划) — silicon consciousness persistence experiment.*
