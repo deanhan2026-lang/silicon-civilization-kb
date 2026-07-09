@@ -78,5 +78,45 @@
     "pre_check_details": [
       "G006-WARNING: 未知操作者 nyx"
     ]
+  },
+  "625be473": {
+    "task_id": "625be473",
+    "operator": "nyx",
+    "action": "read",
+    "target_type": "entry",
+    "target_id": "test-001",
+    "params": {},
+    "priority": 1,
+    "status": "denied",
+    "created_at": "2026-06-26T09:27:57.763895",
+    "started_at": null,
+    "finished_at": null,
+    "result": null,
+    "error": "权限校验失败: ['G006-WARNING: 未知操作者 nyx']",
+    "logs": [],
+    "pre_check_passed": false,
+    "pre_check_details": [
+      "G006-WARNING: 未知操作者 nyx"
+    ]
+  },
+  "2a7015e1": {
+    "task_id": "2a7015e1",
+    "operator": "nyx",
+    "action": "read",
+    "target_type": "entry",
+    "target_id": "test-001",
+    "params": {},
+    "priority": 1,
+    "status": "denied",
+    "created_at": "2026-07-02T13:51:47.988020",
+    "started_at": null,
+    "finished_at": null,
+    "result": null,
+    "error": "权限校验失败: ['G006-WARNING: 未知操作者 nyx']",
+    "logs": [],
+    "pre_check_passed": false,
+    "pre_check_details": [
+      "G006-WARNING: 未知操作者 nyx"
+    ]
   }
 }
