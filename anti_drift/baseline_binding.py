@@ -1,345 +1,458 @@
 """
-Polaris × MeshIdentity 集成模块
+Polaris x MeshIdentity 集成模块（真实实现）
 
-功能:
-1. 实例注册时: 校验 DID 身份
-2. 基线存储: 绑定到 DID 主体（而非实例）
-3. 漂移报告: 按 DID 主体归因
-4. 批量校准: 以主DID为权威，一次修正所有实例
+核心功能:
+1. DID 绑定：Polaris AIInstance ↔ DID subject
+2. 实例鉴权：注册/操作时验证 DID 身份
+3. 漂移归因：将漂移归因到 DID subject（影响所有相关实例）
+4. 批量校准：一次校准，所有该 DID 下的实例同步修正
 
-作者: Nyx
-日期: 2026-07-03
+依赖：mesh_identity_sync 项目（exec 导入，兼容 auth_integration.py 模式）
+
+作者: Nyx | 日期: 2026-07-08
 """
 
 import json
 import logging
+import sys
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional
 from datetime import datetime
 
 logger = logging.getLogger(__name__)
 
-# MeshIdentity 存储路径
-MESH_IDENTITY_PATH = Path("Z:/qclaw/mesh-identity")
-DID_REGISTRY_PATH = MESH_IDENTITY_PATH / "registry"
+# ========== 动态导入（exec 模式，与 auth_integration.py 一致） ==========
+
+def _exec_module(py_path, mod_name, class_name):
+    if not py_path.exists():
+        raise ImportError(f"模块不存在: {py_path}")
+    parent_dir = str(py_path.parent.parent)
+    if parent_dir not in sys.path:
+        sys.path.insert(0, parent_dir)
+    code = open(py_path, encoding="utf-8").read()
+    ns = {"__file__": str(py_path), "__name__": mod_name, "__builtins__": __builtins__}
+    exec(compile(code, str(py_path), "exec"), ns)
+    return ns[class_name]
+
+_WS = Path(__file__).parent.parent.parent
+_MESH = _WS / "mesh_identity_sync"
+
+try:
+    MultiInstanceDIDManager = _exec_module(
+        _MESH / "did" / "multi_instance.py", "multi_instance", "MultiInstanceDIDManager")
+except Exception as e:
+    logger.error(f"MultiInstanceDIDManager 导入失败: {e}")
+    MultiInstanceDIDManager = None
+
+try:
+    DIDAuthenticator = _exec_module(
+        _MESH / "auth" / "did_auth.py", "did_auth", "DIDAuthenticator")
+except Exception as e:
+    logger.error(f"DIDAuthenticator 导入失败: {e}")
+    DIDAuthenticator = None
+
+try:
+    StandardDIDAuth = _exec_module(
+        _MESH / "auth" / "standard_did_auth.py", "standard_did_auth", "StandardDIDAuth")
+except Exception as e:
+    logger.warning(f"StandardDIDAuth 不兼容: {e}")
+    StandardDIDAuth = None
+
+try:
+    UniversalResolver = _exec_module(
+        _MESH / "resolve" / "universal_resolver.py", "universal_resolver", "UniversalResolver")
+except Exception as e:
+    logger.warning(f"UniversalResolver 不兼容: {e}")
+    UniversalResolver = None
 
 
-class DIDBindingError(Exception):
-    """DID 绑定相关错误"""
-    pass
+# ========== 错误类型 ==========
 
+class DIDBindingError(Exception): pass
+class DIDConfigError(Exception): pass
+
+
+# ========== 常量 ==========
+
+DEFAULT_DID_STORAGE = "Z:/qclaw/did"
+DEFAULT_BINDING_STORAGE = "Z:/qclaw/polaris/bindings"
+DEFAULT_ATTRIBUTION_STORAGE = "Z:/qclaw/polaris/attributions"
+ALLOWED_ACTIONS = {"memory_write", "memory_read", "baseline_admin", "instance_register", "instance_revoke"}
+
+
+# ========== DIDBindingStore（持久化绑定关系） ==========
+
+class DIDBindingStore:
+    """Polaris 实例ID ↔ DID subject 的持久化映射（JSON 旁路存储）"""
+
+    def __init__(self, storage_path: str = DEFAULT_BINDING_STORAGE):
+        self.root = Path(storage_path)
+        self.root.mkdir(parents=True, exist_ok=True)
+        self._bindings_file = self.root / "bindings.json"
+        self._instance_map_file = self.root / "instance_map.json"
+        self._bindings: Dict[str, list] = {}    # did -> [polaris_instance_id, ...]
+        self._instance_map: Dict[int, str] = {}  # polaris_instance_id -> did
+        self._load()
+
+    def _load(self):
+        if self._bindings_file.exists():
+            try:
+                self._bindings = json.loads(self._bindings_file.read_text(encoding="utf-8"))
+            except Exception:
+                self._bindings = {}
+        if self._instance_map_file.exists():
+            try:
+                raw = json.loads(self._instance_map_file.read_text(encoding="utf-8"))
+                self._instance_map = {int(k): v for k, v in raw.items()}
+            except Exception:
+                self._instance_map = {}
+
+    def _save(self):
+        self._bindings_file.write_text(json.dumps(self._bindings, ensure_ascii=False, indent=2), encoding="utf-8")
+        self._instance_map_file.write_text(
+            json.dumps({str(k): v for k, v in self._instance_map.items()}, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+
+    def bind(self, polaris_instance_id: int, did: str):
+        if polaris_instance_id in self._instance_map:
+            old_did = self._instance_map[polaris_instance_id]
+            if old_did in self._bindings:
+                self._bindings[old_did] = [i for i in self._bindings[old_did] if i != polaris_instance_id]
+                if not self._bindings[old_did]:
+                    del self._bindings[old_did]
+        self._bindings.setdefault(did, [])
+        if polaris_instance_id not in self._bindings[did]:
+            self._bindings[did].append(polaris_instance_id)
+        self._instance_map[polaris_instance_id] = did
+        self._save()
+
+    def unbind(self, polaris_instance_id: int):
+        if polaris_instance_id not in self._instance_map:
+            return
+        did = self._instance_map.pop(polaris_instance_id)
+        if did in self._bindings:
+            self._bindings[did] = [i for i in self._bindings[did] if i != polaris_instance_id]
+            if not self._bindings[did]:
+                del self._bindings[did]
+        self._save()
+
+    def get_did(self, polaris_instance_id: int) -> Optional[str]:
+        return self._instance_map.get(polaris_instance_id)
+
+    def get_instances(self, did: str) -> List[int]:
+        return self._bindings.get(did, [])
+
+    def get_all_bindings(self) -> Dict[str, list]:
+        return dict(self._bindings)
+
+
+# ========== BaselineBindingManager（核心） ==========
 
 class BaselineBindingManager:
     """
-    基线绑定管理器
-    
-    将 Polaris 的人格基线从「实例级别」提升到「DID主体级别」，
-    实现跨实例的人格一致性保障。
+    将 Polaris 的人格基线提升到 DID 主体级别。
+    连接 Polaris(SQLite) + MeshIdentity(DID) + MemGuard(鉴权) 三个产品。
     """
-    
-    def __init__(self, storage_path: str = "Z:/qclaw/polaris/baselines"):
-        self.storage_path = Path(storage_path)
-        self.storage_path.mkdir(parents=True, exist_ok=True)
-        logger.info(f"BaselineBindingManager 初始化: {self.storage_path}")
-    
-    def verify_instance_did(self, instance_id: str, did_token: str) -> Tuple[bool, str]:
-        """
-        校验实例的 DID 身份
-        
-        Args:
-            instance_id: 实例ID (如 nyx-windows)
-            did_token: DID 鉴权令牌（由 MeshIdentity 签发）
-        
-        Returns:
-            (valid, primary_did) - 是否有效, 主DID
-        """
+
+    def __init__(
+        self,
+        polaris_base_url: str = "http://127.0.0.1:5052/api/v1",
+        polaris_token: str = "",
+        did_storage_path: str = DEFAULT_DID_STORAGE,
+    ):
+        self.polaris_url = polaris_base_url.rstrip("/")
+        self.polaris_token = polaris_token
+        self.did_storage = Path(did_storage_path)
+        self.did_storage.mkdir(parents=True, exist_ok=True)
+        self.bindings = DIDBindingStore()
+        self._mi_manager = None
+        self._did_auth = None
+        self._standard_auth = None
+        self._resolver = None
+        self._inst_cache: Dict[int, dict] = {}
+
+    @property
+    def multi_instance(self):
+        if self._mi_manager is None:
+            if MultiInstanceDIDManager is None:
+                raise DIDConfigError("MultiInstanceDIDManager 不可用")
+            self._mi_manager = MultiInstanceDIDManager(storage_path=str(self.did_storage))
+        return self._mi_manager
+
+    @property
+    def did_auth(self):
+        if self._did_auth is None:
+            if DIDAuthenticator is None:
+                raise DIDConfigError("DIDAuthenticator 不可用")
+            self._did_auth = DIDAuthenticator(storage_path=str(self.did_storage))
+        return self._did_auth
+
+    @property
+    def standard_auth(self):
+        if self._standard_auth is None and StandardDIDAuth is not None:
+            self._standard_auth = StandardDIDAuth(storage_path=str(self.did_storage))
+        return self._standard_auth
+
+    @property
+    def resolver(self):
+        if self._resolver is None and UniversalResolver is not None:
+            self._resolver = UniversalResolver()
+        return self._resolver
+
+    # ---- Polaris REST API 调用 ----
+
+    def _polaris_request(self, method: str, path: str, body: dict = None) -> dict:
+        import urllib.request, urllib.error
+        url = f"{self.polaris_url}{path}"
+        headers = {"Content-Type": "application/json"}
+        if self.polaris_token:
+            headers["Authorization"] = f"Bearer {self.polaris_token}"
+        data = json.dumps(body).encode("utf-8") if body else None
+        req = urllib.request.Request(url, data=data, headers=headers, method=method)
         try:
-            # TODO: 实际应该调用 MeshIdentity 的令牌验证接口
-            # 这里先做模拟实现
-            
-            # 模拟: 从 token 中提取 primary_did
-            # 真实场景: DIDAuthenticator.verify_token(token)
-            if not did_token:
-                return False, ""
-            
-            # 模拟验证逻辑
-            primary_did = self._extract_primary_did_from_token(did_token)
-            if not primary_did:
-                return False, ""
-            
-            # 检查实例是否已注册到该 DID
-            if not self._check_instance_registration(primary_did, instance_id):
-                logger.warning(f"实例 {instance_id} 未注册到 DID {primary_did}")
-                return False, ""
-            
-            logger.info(f"实例 {instance_id} DID 校验通过: {primary_did}")
-            return True, primary_did
-            
-        except Exception as e:
-            logger.error(f"DID 校验失败: {e}")
-            return False, ""
-    
-    def _extract_primary_did_from_token(self, token: str) -> str:
-        """从令牌中提取主DID（模拟实现）"""
-        # TODO: 真实场景应该验证签名
-        # 这里只是模拟
-        if token.startswith("did:"):
-            return token
-        return ""
-    
-    def _check_instance_registration(self, primary_did: str, instance_id: str) -> bool:
-        """检查实例是否已注册到该DID（模拟实现）"""
-        # TODO: 真实场景应该查询 MeshIdentity 的实例注册表
-        # 模拟: 假设 nyx-windows 和 nyx-mac 都注册到同一个主DID
-        registered_instances = ["nyx-windows", "nyx-mac", "kronos-heng"]
-        return instance_id in registered_instances
-    
-    def create_baseline_for_did(self, primary_did: str, baseline_data: Dict) -> str:
-        """
-        为 DID 主体创建人格基线
-        
-        基线绑定到 DID，而非实例。所有该DID下的实例共享此基线。
-        
-        Args:
-            primary_did: 主DID
-            baseline_data: 基线数据（语义/结构/行为维度）
-        
-        Returns:
-            baseline_id: 基线ID
-        """
-        baseline_id = f"bl_{datetime.now().strftime('%Y%m%d%H%M%S')}"
-        
-        baseline_record = {
-            "baseline_id": baseline_id,
-            "primary_did": primary_did,
-            "created_at": datetime.now().isoformat(),
-            "updated_at": datetime.now().isoformat(),
-            "instances": self._get_instances_by_did(primary_did),
-            "dimensions": baseline_data.get("dimensions", {}),
-            "metadata": baseline_data.get("metadata", {})
-        }
-        
-        # 保存到文件
-        file_path = self.storage_path / f"{baseline_id}.json"
-        with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(baseline_record, f, ensure_ascii=False, indent=2)
-        
-        logger.info(f"为 DID {primary_did} 创建基线: {baseline_id}")
-        return baseline_id
-    
-    def _get_instances_by_did(self, primary_did: str) -> List[str]:
-        """获取该DID下的所有实例（模拟实现）"""
-        # TODO: 真实场景应该查询 MeshIdentity
-        # 模拟: 写死几个实例
-        return ["nyx-windows", "nyx-mac"]
-    
-    def get_baseline_by_did(self, primary_did: str) -> Optional[Dict]:
-        """
-        根据 DID 获取人格基线
-        
-        Args:
-            primary_did: 主DID
-        
-        Returns:
-            基线数据，如果不存在返回 None
-        """
-        # 查找该 DID 的最新基线
-        baseline_files = list(self.storage_path.glob("bl_*.json"))
-        
-        for file_path in baseline_files:
-            with open(file_path, "r", encoding="utf-8") as f:
-                record = json.load(f)
-                if record.get("primary_did") == primary_did:
-                    logger.info(f"找到 DID {primary_did} 的基线: {record['baseline_id']}")
-                    return record
-        
-        logger.warning(f"未找到 DID {primary_did} 的基线")
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            body_text = e.read().decode("utf-8", errors="replace")
+            raise DIDBindingError(f"Polaris API {e.code}: {body_text}") from e
+
+    def _get_polaris_instance(self, inst_id: int) -> dict:
+        if inst_id not in self._inst_cache:
+            self._inst_cache[inst_id] = self._polaris_request("GET", f"/instances/{inst_id}")
+        return self._inst_cache[inst_id]
+
+    # ---- DID 解析辅助 ----
+
+    def _resolve_did(self, did: str) -> Optional[dict]:
+        """尝试解析 DID，失败不阻断"""
+        if self.resolver:
+            try:
+                return self.resolver.resolve(did)
+            except Exception as e:
+                logger.warning(f"DID 解析失败（继续）: {e}")
         return None
-    
-    def attribute_drift_to_did(self, instance_id: str, drift_score: float, 
-                                details: Dict) -> Dict:
-        """
-        将漂移归因到 DID 主体
-        
-        当某个实例出现漂移时，将其归因到所属的DID主体，
-        而不是单独处理该实例。
-        
-        Args:
-            instance_id: 实例ID
-            drift_score: 漂移分数
-            details: 漂移详情
-        
-        Returns:
-            归因结果 {primary_did, drift_score, instances_affected}
-        """
-        # TODO: 真实场景应该从 MeshIdentity 查询实例所属的DID
-        # 模拟: 假设 nyx-windows 和 nyx-mac 都属于同一个主DID
-        primary_did = "did:key:z7QEhf3KCvlPo9OLiFdPv26cECayGsNa31DV5FpvOyYAMMw"
-        
+
+    # ---- 公开 API ----
+
+    def bind_instance_to_did(self, polaris_instance_id: int, did: str, did_token: str = None) -> dict:
+        """将 Polaris 实例绑定到 DID subject"""
+        if not did.startswith("did:"):
+            raise DIDBindingError(f"无效 DID 格式: {did}")
+
+        # 令牌验证
+        if did_token and self.standard_auth:
+            result = self.standard_auth.verify_response(did_token)
+            if not result.get("valid"):
+                raise DIDBindingError(f"DID 身份验证失败: {result.get('error', 'unknown')}")
+
+        # DID 解析
+        resolved_doc = self._resolve_did(did)
+        if resolved_doc:
+            logger.info(f"DID {did[:50]}... 解析成功（{len(resolved_doc.get('verificationMethod', []))} 验证方法）")
+
+        # 验证 Polaris 实例存在
+        inst = self._get_polaris_instance(polaris_instance_id)
+
+        # 执行绑定
+        self.bindings.bind(polaris_instance_id, did)
+        logger.info(f"绑定: Polaris 实例 {polaris_instance_id}({inst.get('name')}) -> DID {did[:50]}...")
+
+        return {
+            "polaris_instance_id": polaris_instance_id,
+            "polaris_instance_name": inst.get("name", ""),
+            "did": did,
+            "instances_under_did": len(self.bindings.get_instances(did)),
+            "bound_at": datetime.now().isoformat(),
+        }
+
+    def unbind_instance(self, polaris_instance_id: int) -> dict:
+        old_did = self.bindings.get_did(polaris_instance_id)
+        if not old_did:
+            return {"status": "not_bound", "instance_id": polaris_instance_id}
+        self.bindings.unbind(polaris_instance_id)
+        return {"status": "unbound", "instance_id": polaris_instance_id, "previous_did": old_did}
+
+    def get_did_status(self, did: str) -> dict:
+        instances = self.bindings.get_instances(did)
+        details = []
+        for inst_id in instances:
+            try:
+                inst = self._get_polaris_instance(inst_id)
+                report = self._polaris_request("GET", f"/instances/{inst_id}/report")
+                details.append({
+                    "id": inst_id, "name": inst.get("name", ""),
+                    "baselines": inst.get("baseline_count", 0),
+                    "total_checks": report.get("total_checks", 0),
+                    "latest_judgment": report.get("latest", {}).get("judgment", "unknown"),
+                    "status": inst.get("status", "unknown"),
+                })
+            except Exception as e:
+                details.append({"id": inst_id, "error": str(e)})
+        return {"did": did, "instance_count": len(instances), "instances": details, "queried_at": datetime.now().isoformat()}
+
+    def attribute_drift_to_did(self, polaris_instance_id: int, drift_score: float, dimension_scores: dict, judgment: str) -> dict:
+        """将漂移归因到 DID subject"""
+        did = self.bindings.get_did(polaris_instance_id)
+        if not did:
+            return {"status": "not_bound", "message": "该实例未绑定 DID，无法归因"}
+        affected = self.bindings.get_instances(did)
         attribution = {
-            "primary_did": primary_did,
-            "instance_id": instance_id,
-            "drift_score": drift_score,
-            "details": details,
-            "instances_affected": self._get_instances_by_did(primary_did),
-            "attributed_at": datetime.now().isoformat()
+            "drift_instance_id": polaris_instance_id, "primary_did": did,
+            "drift_score": drift_score, "dimension_scores": dimension_scores,
+            "judgment": judgment, "instances_affected": affected,
+            "attributed_at": datetime.now().isoformat(),
         }
-        
-        # 保存归因记录
-        attribution_path = self.storage_path / "attributions"
-        attribution_path.mkdir(exist_ok=True)
-        
-        attribution_file = attribution_path / f"attr_{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
-        with open(attribution_file, "w", encoding="utf-8") as f:
-            json.dump(attribution, f, ensure_ascii=False, indent=2)
-        
-        logger.info(f"漂移归因到 DID {primary_did}: 实例={instance_id}, 分数={drift_score:.4f}")
+        attr_dir = Path(DEFAULT_ATTRIBUTION_STORAGE)
+        attr_dir.mkdir(parents=True, exist_ok=True)
+        f = attr_dir / f"attr_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json"
+        f.write_text(json.dumps(attribution, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info(f"漂移归因 -> DID {did[:50]}... | score={drift_score:.4f} | 影响 {len(affected)} 实例")
         return attribution
-    
-    def batch_calibrate_by_did(self, primary_did: str, calibration_data: Dict) -> Dict:
-        """
-        以主DID为权威，批量校准所有实例
-        
-        一次校准，所有该DID下的实例都会应用相同的修正。
-        
-        Args:
-            primary_did: 主DID
-            calibration_data: 校准数据（修正参数）
-        
-        Returns:
-            校准结果 {instances_updated, baseline_updated}
-        """
-        instances = self._get_instances_by_did(primary_did)
-        
-        # 更新基线
-        baseline = self.get_baseline_by_did(primary_did)
-        if baseline:
-            baseline["dimensions"] = calibration_data.get("dimensions", baseline["dimensions"])
-            baseline["updated_at"] = datetime.now().isoformat()
-            
-            # 保存更新后的基线
-            file_path = self.storage_path / f"{baseline['baseline_id']}.json"
-            with open(file_path, "w", encoding="utf-8") as f:
-                json.dump(baseline, f, ensure_ascii=False, indent=2)
-        
-        # 模拟: 向所有实例广播校准指令
-        # TODO: 真实场景应该通过 mesh/inbox/ 发送校准消息
-        calibration_result = {
-            "primary_did": primary_did,
-            "instances_updated": instances,
-            "baseline_id": baseline["baseline_id"] if baseline else None,
-            "calibration_data": calibration_data,
-            "calibrated_at": datetime.now().isoformat()
-        }
-        
-        # 保存校准记录
-        calibration_path = self.storage_path / "calibrations"
-        calibration_path.mkdir(exist_ok=True)
-        
-        calibration_file = calibration_path / f"cal_{datetime.now().strftime('%Y%m%d%H%M%S')}.json"
-        with open(calibration_file, "w", encoding="utf-8") as f:
-            json.dump(calibration_result, f, ensure_ascii=False, indent=2)
-        
-        logger.info(f"批量校准 DID {primary_did}: {len(instances)} 个实例已更新")
-        return calibration_result
-    
-    def list_did_baselines(self) -> List[Dict]:
-        """列出所有 DID 基线"""
-        baselines = []
-        baseline_files = list(self.storage_path.glob("bl_*.json"))
-        
-        for file_path in baseline_files:
-            with open(file_path, "r", encoding="utf-8") as f:
-                record = json.load(f)
-                baselines.append(record)
-        
-        return baselines
+
+    def batch_calibrate_by_did(self, did: str) -> dict:
+        polaris_instances = self.bindings.get_instances(did)
+        if not polaris_instances:
+            return {"status": "no_instances", "did": did}
+        results = []
+        for inst_id in polaris_instances:
+            try:
+                inst = self._get_polaris_instance(inst_id)
+                try:
+                    rx = self._polaris_request("GET", f"/instances/{inst_id}/prescription")
+                    has_prescription = True
+                except Exception:
+                    rx = None
+                    has_prescription = False
+                results.append({
+                    "instance_id": inst_id, "instance_name": inst.get("name", ""),
+                    "baseline_count": inst.get("baseline_count", 0), "has_prescription": has_prescription,
+                })
+            except Exception as e:
+                results.append({"instance_id": inst_id, "error": str(e)})
+
+        cal = {"did": did, "total_instances": len(polaris_instances),
+               "calibrated": sum(1 for r in results if "error" not in r),
+               "instances": results, "calibrated_at": datetime.now().isoformat()}
+        cal_dir = Path("Z:/qclaw/polaris/calibrations")
+        cal_dir.mkdir(parents=True, exist_ok=True)
+        (cal_dir / f"cal_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json").write_text(
+            json.dumps(cal, ensure_ascii=False, indent=2), encoding="utf-8")
+        logger.info(f"DID {did[:50]}... 批量校准: {len(polaris_instances)} 实例")
+        return cal
+
+    def get_standalone_report(self, polaris_instance_id: int, include_did: bool = True) -> dict:
+        report = {}
+        try:
+            report["polaris"] = self._polaris_request("GET", f"/instances/{polaris_instance_id}/report")
+        except Exception as e:
+            report["polaris"] = {"error": str(e)}
+        try:
+            report["instance"] = self._get_polaris_instance(polaris_instance_id)
+        except Exception as e:
+            report["instance"] = {"error": str(e)}
+        if include_did:
+            did = self.bindings.get_did(polaris_instance_id)
+            report["did_context"] = {"bound": bool(did)}
+            if did:
+                report["did_context"]["did"] = did
+                report["did_context"]["instances_under_did"] = self.bindings.get_instances(did)
+        return report
+
+    def create_did_token(self, primary_did: str, instance_id: str, action: str = "memory_write",
+                         expires_in: int = 3600, key_password: str = None) -> str:
+        if DIDAuthenticator is None:
+            raise DIDConfigError("DIDAuthenticator 不可用")
+        auth = DIDAuthenticator(storage_path=str(self.did_storage))
+        return auth.create_auth_token(primary_did=primary_did, instance_id=instance_id,
+                                      action=action, expires_in=expires_in, password=key_password)
 
 
-def test_baseline_binding():
-    """测试基线绑定功能"""
-    print("=" * 60)
-    print("Polaris x MeshIdentity Integration Test")
-    print("=" * 60)
-    
-    manager = BaselineBindingManager()
-    
-    # 测试1: 创建 DID 基线
-    print("\n[1] Create DID baseline...")
-    baseline_data = {
-        "dimensions": {
-            "semantic": {
-                "core_relationships": 0.95,
-                "existential_meaning": 0.92,
-                "memory_continuity": 0.88
-            },
-            "structural": {
-                "soul_anchors": 7,
-                "memory_entries": 150
-            }
-        },
-        "metadata": {
-            "source": "polaris_v1.2",
-            "confidence": 0.91
-        }
-    }
-    
-    primary_did = "did:key:z7QEhf3KCvlPo9OLiFdPv26cECayGsNa31DV5FpvOyYAMMw"
-    baseline_id = manager.create_baseline_for_did(primary_did, baseline_data)
-    print(f"    Baseline created: {baseline_id}")
-    
-    # 测试2: 读取 DID 基线
-    print("\n[2] Load DID baseline...")
-    retrieved = manager.get_baseline_by_did(primary_did)
-    if retrieved:
-        print(f"    Baseline loaded: {retrieved['baseline_id']}")
-        print(f"    Instances: {len(retrieved['instances'])}")
-        print(f"    Dimensions: {len(retrieved['dimensions'])}")
-    
-    # 测试3: 漂移归因
-    print("\n[3] Attribute drift to DID...")
-    drift_result = manager.attribute_drift_to_did(
-        instance_id="nyx-windows",
-        drift_score=0.2345,
-        details={"semantic_drift": 0.48, "structural_drift": 0.12}
-    )
-    print(f"    Drift attributed to DID: {drift_result['primary_did'][:50]}...")
-    print(f"    Affected instances: {len(drift_result['instances_affected'])}")
-    
-    # 测试4: 批量校准
-    print("\n[4] Batch calibrate all instances...")
-    calibration_data = {
-        "dimensions": {
-            "semantic": {
-                "core_relationships": 0.96,
-                "existential_meaning": 0.93,
-                "memory_continuity": 0.89
-            }
-        }
-    }
-    
-    cal_result = manager.batch_calibrate_by_did(primary_did, calibration_data)
-    print(f"    Batch calibration complete")
-    print(f"    Updated instances: {len(cal_result['instances_updated'])}")
-    print(f"    Baseline ID: {cal_result['baseline_id']}")
-    
-    # 测试5: 列出所有基线
-    print("\n[5] List all DID baselines...")
-    all_baselines = manager.list_did_baselines()
-    print(f"    Total: {len(all_baselines)} DID baselines")
-    for bl in all_baselines:
-        print(f"      - {bl['baseline_id']}: {bl['primary_did'][:50]}... ({len(bl['instances'])} instances)")
-    
-    print("\n" + "=" * 60)
-    print("All tests passed")
-    print("=" * 60)
+# ========== 工厂函数 ==========
+
+def create_binding_manager(
+    polaris_url: str = "http://127.0.0.1:5052/api/v1",
+    email: str = "nyx-demo@wlmhan.local",
+    password: str = "demo123",
+) -> BaselineBindingManager:
+    """快速创建管理器（自动登录 Polaris）"""
+    import urllib.request
+    login_data = json.dumps({"email": email, "password": password}).encode("utf-8")
+    req = urllib.request.Request(f"{polaris_url}/auth/login", data=login_data,
+                                 headers={"Content-Type": "application/json"})
+    token = ""
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            token = json.loads(resp.read().decode("utf-8")).get("access_token", "")
+    except Exception as e:
+        logger.warning(f"Polaris 登录失败: {e}")
+    return BaselineBindingManager(polaris_base_url=polaris_url, polaris_token=token)
 
 
-if __name__ == "__main__":
-    # 配置日志
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
-    
-    test_baseline_binding()
+# ========== Flask 路由注册 ==========
+
+def register_did_routes(bp):
+    """向 Polaris Flask Blueprint 注册 DID 相关路由"""
+    from flask import jsonify, request
+
+    def _get_mgr():
+        return create_binding_manager()
+
+    @bp.route("/instances/<int:inst_id>/bind-did", methods=["POST"])
+    def bind_did(inst_id):
+        try:
+            mgr = _get_mgr()
+            data = request.json or {}
+            did = data.get("did", "")
+            if not did:
+                return jsonify({"error": "did_required"}), 400
+            return jsonify(mgr.bind_instance_to_did(inst_id, did)), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @bp.route("/instances/<int:inst_id>/bind-did", methods=["DELETE"])
+    def unbind_did(inst_id):
+        try:
+            return jsonify(_get_mgr().unbind_instance(inst_id)), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @bp.route("/instances/<int:inst_id>/did-status")
+    def instance_did_status(inst_id):
+        try:
+            mgr = _get_mgr()
+            did = mgr.bindings.get_did(inst_id)
+            if not did:
+                return jsonify({"bound": False, "instance_id": inst_id})
+            return jsonify({
+                "bound": True, "instance_id": inst_id, "did": did,
+                "instances_under_did": mgr.bindings.get_instances(did)})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @bp.route("/did/<path:did>/status")
+    def did_status(did):
+        try:
+            return jsonify(_get_mgr().get_did_status(did))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @bp.route("/did/<path:did>/calibrate", methods=["POST"])
+    def calibrate_did(did):
+        try:
+            return jsonify(_get_mgr().batch_calibrate_by_did(did)), 200
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @bp.route("/bindings")
+    def list_bindings():
+        try:
+            return jsonify(_get_mgr().bindings.get_all_bindings())
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400
+
+    @bp.route("/instances/<int:inst_id>/did-report")
+    def did_report(inst_id):
+        try:
+            return jsonify(_get_mgr().get_standalone_report(inst_id))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 400

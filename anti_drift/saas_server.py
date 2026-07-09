@@ -20,6 +20,10 @@ app = Flask(__name__, static_folder=None)
 # 初始化数据库
 init_db()
 
+# 注册 DID 绑定路由（M5）- 必须在 app.register_blueprint 之前
+from anti_drift.baseline_binding import register_did_routes
+register_did_routes(api_v2.bp)
+
 # 注册 API Blueprint
 app.register_blueprint(api_v2.bp, url_prefix='/api/v1')
 

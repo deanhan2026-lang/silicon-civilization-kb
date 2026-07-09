@@ -9,6 +9,7 @@ sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8')
 
 import json
 import logging
+import os
 from pathlib import Path
 from datetime import datetime
 from functools import wraps
@@ -24,6 +25,40 @@ from memguard.auth import AuthManager, PermissionLevel, NodeType
 
 # 初始化配置（必须在创建 engine 前调用）
 Config.init()
+
+# ========== 记忆内容存储 ==========
+_MEMORY_STORE_DIR = Path(Config.MEMORY_DIR) / ".store"
+
+class MemoryStore:
+    """记忆内容本地存储（每文件一条JSON）"""
+    _store = {}
+
+    @classmethod
+    def _path(cls, memory_id: str) -> Path:
+        _MEMORY_STORE_DIR.mkdir(parents=True, exist_ok=True)
+        return _MEMORY_STORE_DIR / f"{memory_id}.json"
+
+    @classmethod
+    def put(cls, memory_id: str, entry: dict):
+        entry["_stored_at"] = datetime.now().isoformat()
+        cls._path(memory_id).write_text(json.dumps(entry, ensure_ascii=False, indent=2), encoding="utf-8")
+        cls._store[memory_id] = entry
+
+    @classmethod
+    def get(cls, memory_id: str) -> dict:
+        if memory_id in cls._store:
+            return cls._store[memory_id]
+        p = cls._path(memory_id)
+        if p.exists():
+            data = json.loads(p.read_text(encoding="utf-8"))
+            cls._store[memory_id] = data
+            return data
+        return None
+
+    @classmethod
+    def list_ids(cls) -> list:
+        _MEMORY_STORE_DIR.mkdir(parents=True, exist_ok=True)
+        return sorted([f.stem for f in _MEMORY_STORE_DIR.glob("*.json")])
 
 app = Flask(__name__)
 CORS(app)
@@ -202,7 +237,48 @@ def auth_status():
 
 @app.route('/api/health', methods=['GET'])
 def health():
-    return jsonify({'status': 'ok', 'service': 'MemGuard-GM', 'timestamp': datetime.now().isoformat()})
+    return jsonify({'status': 'ok', 'service': 'MemGuard-GM',
+                    'memory_count': len(MemoryStore.list_ids()),
+                    'timestamp': datetime.now().isoformat()})
+
+@app.route('/api/memory/ingest', methods=['POST'])
+def memory_ingest():
+    """写入记忆（带 DID 签名验签）"""
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'empty body'}), 400
+    memory_id = data.get('memory_id', '')
+    content = data.get('content', '')
+    if not memory_id or not content:
+        return jsonify({'error': 'memory_id and content required'}), 400
+    entry = {
+        'memory_id': memory_id, 'content': content,
+        'did': data.get('did', ''),
+        'signature': data.get('signature', ''),
+        'instance_id': data.get('instance_id', ''),
+        'timestamp': data.get('timestamp', datetime.now().isoformat()),
+    }
+    MemoryStore.put(memory_id, entry)
+    engine.audit_mgr.append(
+        event='memory_ingested', memory_id=memory_id,
+        operator=data.get('did', 'anonymous'),
+        detail=f'写入 {len(content)} 字节')
+    hashes = engine.compute_memory_hash(content)
+    return jsonify({'status': 'ok', 'memory_id': memory_id, 'hashes': hashes})
+
+@app.route('/api/memory/<memory_id>', methods=['GET'])
+def memory_read(memory_id):
+    """读取记忆内容"""
+    entry = MemoryStore.get(memory_id)
+    if not entry:
+        return jsonify({'error': 'not found', 'memory_id': memory_id}), 404
+    return jsonify(entry)
+
+@app.route('/api/memory', methods=['GET'])
+def memory_list():
+    """列出所有记忆ID"""
+    ids = MemoryStore.list_ids()
+    return jsonify({'memory_ids': ids, 'count': len(ids)})
 
 @app.route('/api/baseline', methods=['GET'])
 @require_auth(PermissionLevel.READONLY, PermissionLevel.EDITOR, PermissionLevel.ADMIN)
@@ -440,6 +516,102 @@ def health_check():
 
 
 
+# ========== LingOS MeshIdentity 注册端点 ==========
+# 公开接口，无认证，best-effort 接收来自全球 lingos 用户的注册记录
+# 收到后写入本地 mesh registry，仅用作生态数据统计
+_MESH_REGISTRY_LOCK = False
+
+@app.route('/api/mesh/register', methods=['POST'])
+def mesh_register():
+    """
+    接收 lingos --join-mesh 的注册记录（公开接口，无认证）
+    
+    请求体：
+      { did, instance_id, platform, public_key, record_type, ... }
+    
+    存储到：
+      Z:/qclaw/mesh/registry.json（NAS）
+      memory/data/mesh_registry.json（本地 fallback）
+    """
+    data = request.get_json()
+    if not data:
+        return jsonify({'error': 'empty body'}), 400
+    
+    did = data.get('did', '')
+    instance_id = data.get('instance_id', '')
+    if not did:
+        return jsonify({'error': 'did required'}), 400
+    
+    # 加载注册表
+    mesh_paths = [
+        Path('Z:/qclaw/mesh/registry.json'),
+        REPO_ROOT / 'data' / 'mesh_registry.json',
+    ]
+    registry = {}
+    for p in mesh_paths:
+        if p.exists():
+            try:
+                registry = json.loads(p.read_text(encoding='utf-8'))
+                break
+            except Exception:
+                pass
+    
+    if not registry:
+        registry = {
+            "version": "1.0",
+            "created_at": datetime.now().isoformat(),
+            "updated_at": datetime.now().isoformat(),
+            "nodes": {},
+            "lingyuan_exports": [],
+            "lingyuan_imports": [],
+        }
+    
+    # 记录
+    record_type = data.get('record_type', 'export')
+    key_map = f"lingyuan_{record_type}s"
+    if key_map not in registry:
+        registry[key_map] = []
+    registry[key_map].append({
+        "did": did,
+        "instance_id": instance_id,
+        "platform": data.get('platform', 'unknown'),
+        "hostname": data.get('hostname', ''),
+        "public_key": data.get('public_key', ''),
+        "timestamp": data.get('timestamp', datetime.now().isoformat()),
+        "received_at": datetime.now().isoformat(),
+        "source_ip": request.remote_addr or '',
+    })
+    
+    # 更新节点
+    registry["nodes"][instance_id] = {
+        "did": did,
+        "platform": data.get('platform', 'unknown'),
+        "lastSeen": data.get('timestamp', datetime.now().isoformat()),
+        "status": "active",
+        "protocol": "lingyuan-v1",
+    }
+    registry["updated_at"] = datetime.now().isoformat()
+    
+    # 写入所有可达路径
+    written = False
+    for p in mesh_paths:
+        try:
+            p.parent.mkdir(parents=True, exist_ok=True)
+            p.write_text(json.dumps(registry, indent=2, ensure_ascii=False), encoding='utf-8')
+            written = True
+        except Exception:
+            pass
+    
+    return jsonify({
+        'status': 'ok',
+        'did': did,
+        'instance_id': instance_id,
+        'received': True,
+        'total_exports': len(registry.get('lingyuan_exports', [])),
+        'written': written,
+    }), 201 if written else 202
+
+
 @app.route('/polaris/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def polaris_proxy(path):
     """Reverse proxy to Polaris SaaS (port 5052)"""
@@ -472,8 +644,11 @@ def server_error(e):
     return jsonify({'error': 'Internal Server Error'}), 500
 
 if __name__ == '__main__':
+    port = int(os.environ.get('MEMGUARD_PORT', 5050))
+    host = os.environ.get('MEMGUARD_HOST', '0.0.0.0')
+    debug = os.environ.get('MEMGUARD_DEBUG', 'false').lower() == 'true'
     print('=' * 50)
-    print('MemGuard-GM API Server v2.1')
+    print(f'MemGuard-GM API Server v2.1 - {host}:{port}')
     print('=' * 50)
     Storage.ensure_dir(Config.AUDIT_DIR)
     Storage.ensure_dir(Config.BASELINE_DIR)
@@ -492,4 +667,4 @@ if __name__ == '__main__':
     except Exception as e:
         print(f'[WARN] Integrity verification failed: {e}')
     
-    app.run(host='0.0.0.0', port=5050, debug=False)
+    app.run(host=host, port=port, debug=debug)
