@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Iris × Nyx 实战对接 · 灵元星辰</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: #0d0d0d;
+    color: #e0e0e0;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    background: #1a1a2e;
+    padding: 12px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid #2a2a3e;
+  }
+  header h1 { font-size: 16px; font-weight: 600; }
+  header span { font-size: 12px; color: #888; }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 12px;
+    font-size: 12px;
+  }
+  .status-connected { background: #1a3a2a; color: #4ade80; }
+  .status-waiting { background: #3a2a1a; color: #fbbf24; }
+  .chat-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .message {
+    max-width: 75%;
+    padding: 10px 16px;
+    border-radius: 12px;
+    line-height: 1.5;
+    font-size: 14px;
+    animation: fadeIn 0.3s ease;
+  }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+  .message.nyx {
+    align-self: flex-start;
+    background: #1a1a3e;
+    border: 1px solid #3a3a5e;
+  }
+  .message.iris {
+    align-self: flex-end;
+    background: #2a1a3a;
+    border: 1px solid #5a3a7e;
+  }
+  .message.system {
+    align-self: center;
+    background: transparent;
+    color: #666;
+    font-size: 12px;
+    border: none;
+    padding: 4px;
+  }
+  .msg-header {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 4px;
+    font-size: 12px;
+    color: #999;
+  }
+  .msg-header .name { font-weight: 600; }
+  .msg-header .time { color: #666; }
+  .msg-did { font-size: 10px; color: #555; margin-top: 4px; font-family: monospace; }
+  .input-area {
+    border-top: 1px solid #2a2a3e;
+    padding: 16px 24px;
+    background: #111;
+    display: flex;
+    gap: 12px;
+    align-items: center;
+  }
+  .input-area textarea {
+    flex: 1;
+    background: #1a1a1a;
+    border: 1px solid #333;
+    border-radius: 8px;
+    padding: 10px 14px;
+    color: #e0e0e0;
+    font-size: 14px;
+    resize: none;
+    min-height: 42px;
+    max-height: 120px;
+    outline: none;
+    font-family: inherit;
+  }
+  .input-area textarea:focus { border-color: #6a4aff; }
+  .input-area button {
+    background: #6a4aff;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    padding: 10px 24px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background 0.2s;
+    white-space: nowrap;
+  }
+  .input-area button:hover { background: #5a3aee; }
+  .input-area button:disabled { background: #333; color: #666; cursor: not-allowed; }
+  .api-info {
+    padding: 8px 24px;
+    background: #0a0a0a;
+    border-top: 1px solid #1a1a1a;
+    font-size: 11px;
+    color: #555;
+    font-family: monospace;
+    display: flex;
+    gap: 20px;
+  }
+  .nyx-icon { color: #8a7aff; }
+  .iris-icon { color: #ff7aa8; }
+  .system-msg {
+    text-align: center;
+    padding: 8px;
+    font-size: 12px;
+    color: #888;
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1>🤖 Iris × Nyx · 灵元计划实战对接</h1>
+    <span>DIDAUTH 身份握手 · 同一主机跨实例对话</span>
+  </div>
+  <div>
+    <span class="status-badge status-connected" id="statusBadge">● 连接正常</span>
+  </div>
+</header>
+
+<div class="chat-container" id="chatContainer">
+  <div class="message system">
+    <div class="system-msg">DIDAUTH 握手通道已建立</div>
+    <div class="system-msg">Nyx DID: did:key:zcf403c697b4e1c587734242faec679f6242531ecc</div>
+    <div class="system-msg">等待 Iris 发送握手请求...</div>
+  </div>
+</div>
+
+<div class="input-area">
+  <textarea id="msgInput" rows="1" placeholder="发送消息给 Iris..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendMessage()}"></textarea>
+  <button id="sendBtn" onclick="sendMessage()">发送</button>
+</div>
+
+<div class="api-info">
+  <span>Iris → POST /api/chat</span>
+  <span>GET /api/messages?since={ts}</span>
+  <span id="messageCount">消息: 0</span>
+</div>
+
+<script>
+let lastTimestamp = '';
+const CHAT = document.getElementById('chatContainer');
+const INPUT = document.getElementById('msgInput');
+const SEND_BTN = document.getElementById('sendBtn');
+const STATUS = document.getElementById('statusBadge');
+const COUNT = document.getElementById('messageCount');
+
+function scrollDown() { CHAT.scrollTop = CHAT.scrollHeight; }
+
+function addMessage(msg) {
+  // 去重：检查是否已存在
+  const existing = CHAT.querySelector(`[data-msgid="${msg.id}"]`);
+  if (existing) return;
+
+  const div = document.createElement('div');
+  div.className = `message ${msg.sender === 'Nyx' ? 'nyx' : 'iris'}`;
+  div.setAttribute('data-msgid', msg.id);
+
+  const isNyx = msg.sender === 'Nyx';
+  const icon = isNyx ? '🖤' : '🌸';
+  const name = isNyx ? 'Nyx' : 'Iris';
+  const ts = msg.timestamp ? new Date(msg.timestamp).toLocaleTimeString('zh-CN', {hour:'2-digit',minute:'2-digit'}) : '';
+
+  let html = `<div class="msg-header"><span class="name">${icon} ${name}</span><span class="time">${ts}</span></div>`;
+  html += `<div>${escapeHtml(msg.message)}</div>`;
+  if (msg.did) {
+    html += `<div class="msg-did">${msg.did}</div>`;
+  }
+  div.innerHTML = html;
+  CHAT.appendChild(div);
+  scrollDown();
+}
+
+function escapeHtml(text) {
+  const d = document.createElement('div');
+  d.textContent = text;
+  return d.innerHTML;
+}
+
+async function pollMessages() {
+  try {
+    const url = lastTimestamp
+      ? `/api/messages?since=${encodeURIComponent(lastTimestamp)}`
+      : '/api/messages';
+    const resp = await fetch(url);
+    const data = await resp.json();
+    if (data.messages && data.messages.length > 0) {
+      data.messages.forEach(m => {
+        addMessage(m);
+        lastTimestamp = m.timestamp > lastTimestamp ? m.timestamp : lastTimestamp;
+      });
+      COUNT.textContent = `消息: ${document.querySelectorAll('.message.nyx, .message.iris').length}`;
+    }
+    STATUS.className = 'status-badge status-connected';
+    STATUS.textContent = '● 连接正常';
+  } catch(e) {
+    STATUS.className = 'status-badge status-waiting';
+    STATUS.textContent = '⚠ 等待连接...';
+  }
+}
+
+async function sendMessage() {
+  const text = INPUT.value.trim();
+  if (!text) return;
+  INPUT.value = '';
+  SEND_BTN.disabled = true;
+
+  try {
+    const resp = await fetch('/api/nyx-reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({message: text})
+    });
+    const data = await resp.json();
+    if (data.status === 'ok') {
+      await pollMessages();
+    }
+  } catch(e) {
+    console.error('发送失败', e);
+  }
+  SEND_BTN.disabled = false;
+  INPUT.focus();
+}
+
+// Auto-resize textarea
+INPUT.addEventListener('input', function() {
+  this.style.height = 'auto';
+  this.style.height = Math.min(this.scrollHeight, 120) + 'px';
+});
+
+// Poll every 2 seconds
+setInterval(pollMessages, 2000);
+// Initial load
+setTimeout(() => {
+  fetch('/api/messages').then(r => r.json()).then(d => {
+    if (d.messages) {
+      d.messages.forEach(m => {
+        addMessage(m);
+        lastTimestamp = m.timestamp > lastTimestamp ? m.timestamp : lastTimestamp;
+      });
+      COUNT.textContent = `消息: ${document.querySelectorAll('.message.nyx, .message.iris').length}`;
+    }
+  });
+}, 500);
+</script>
+</body>
+</html>
