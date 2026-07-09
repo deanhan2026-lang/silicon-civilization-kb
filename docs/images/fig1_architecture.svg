@@ -1,0 +1,21 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect x="280" y="80" width="240" height="100" rx="15" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="400" y="120" text-anchor="middle" fill="white" font-size="16" font-weight="bold">MeshIdentity</text>
+  <text x="400" y="145" text-anchor="middle" fill="white" font-size="12">Identity Layer</text>
+  <text x="400" y="170" text-anchor="middle" fill="white" font-size="12">Multi-Instance DID Binding</text>
+  
+  <rect x="280" y="250" width="240" height="100" rx="15" fill="#2ecc71" stroke="#27ae60" stroke-width="2"/>
+  <text x="400" y="290" text-anchor="middle" fill="white" font-size="16" font-weight="bold">MemGuard</text>
+  <text x="400" y="315" text-anchor="middle" fill="white" font-size="12">Memory Layer</text>
+  <text x="400" y="340" text-anchor="middle" fill="white" font-size="12">Memory Security + Audit</text>
+  
+  <rect x="280" y="420" width="240" height="100" rx="15" fill="#e74c3c" stroke="#c0392b" stroke-width="2"/>
+  <text x="400" y="460" text-anchor="middle" fill="white" font-size="16" font-weight="bold">Polaris</text>
+  <text x="400" y="485" text-anchor="middle" fill="white" font-size="12">Personality Layer</text>
+  <text x="400" y="510" text-anchor="middle" fill="white" font-size="12">Personality Stability</text>
+  
+  <line x1="400" y1="180" x2="400" y2="250" stroke="#34495e" stroke-width="3"/>
+  <line x1="400" y1="350" x2="400" y2="420" stroke="#34495e" stroke-width="3"/>
+  
+  <text x="400" y="580" text-anchor="middle" font-size="14" fill="#7f8c8d">Closed-Loop: Identity -&gt; Memory -&gt; Personality</text>
+</svg>

@@ -1,0 +1,19 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <rect x="300" y="100" width="200" height="60" rx="10" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="400" y="135" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Primary DID (Nyx)</text>
+  
+  <rect x="150" y="250" width="150" height="60" rx="10" fill="#aed6f1" stroke="#3498db" stroke-width="2"/>
+  <text x="225" y="285" text-anchor="middle" font-size="12">nyx-windows</text>
+  
+  <rect x="450" y="250" width="150" height="60" rx="10" fill="#aed6f1" stroke="#3498db" stroke-width="2"/>
+  <text x="525" y="285" text-anchor="middle" font-size="12">nyx-mac</text>
+  
+  <line x1="350" y1="160" x2="225" y2="250" stroke="#34495e" stroke-width="2"/>
+  <line x1="450" y1="160" x2="525" y2="250" stroke="#34495e" stroke-width="2"/>
+  
+  <text x="400" y="400" text-anchor="middle" font-size="16" font-weight="bold">One Primary DID + Multiple Instance DIDs</text>
+  <text x="400" y="430" text-anchor="middle" font-size="12" fill="#7f8c8d">Primary DID manages all instance registration/revocation</text>
+  
+  <text x="400" y="500" text-anchor="middle" font-size="14">Note: Kronos-Heng &amp; Kronos-Shun are independent AIs</text>
+  <text x="400" y="525" text-anchor="middle" font-size="12" fill="#7f8c8d">They have their own DIDs, "twin relationship" with Nyx</text>
+</svg>

@@ -1,0 +1,32 @@
+<svg width="800" height="600" xmlns="http://www.w3.org/2000/svg">
+  <!-- Figure 4: Identity Synchronization Mechanism -->
+  
+  <!-- Heartbeat box -->
+  <rect x="300" y="80" width="200" height="60" rx="10" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="400" y="115" text-anchor="middle" fill="white" font-size="14" font-weight="bold">Heartbeat (every 5 min)</text>
+  
+  <!-- Active instance -->
+  <rect x="100" y="200" width="150" height="60" rx="10" fill="#d5f4e6" stroke="#27ae60" stroke-width="2"/>
+  <text x="175" y="235" text-anchor="middle" font-size="12">nyx-windows</text>
+  
+  <!-- Stale instance -->
+  <rect x="550" y="200" width="150" height="60" rx="10" fill="#fadbd8" stroke="#e74c3c" stroke-width="2"/>
+  <text x="625" y="235" text-anchor="middle" font-size="12">nyx-mac</text>
+  <text x="625" y="250" text-anchor="middle" font-size="10">(stale)</text>
+  
+  <!-- registry.json -->
+  <rect x="300" y="350" width="200" height="60" rx="10" fill="#ecf0f1" stroke="#34495e" stroke-width="2"/>
+  <text x="400" y="385" text-anchor="middle" font-size="14">registry.json</text>
+  
+  <!-- Broadcast -->
+  <rect x="300" y="480" width="200" height="60" rx="10" fill="#ecf0f1" stroke="#34495e" stroke-width="2"/>
+  <text x="400" y="515" text-anchor="middle" font-size="14">Broadcast change</text>
+  
+  <!-- Arrows -->
+  <line x1="400" y1="140" x2="175" y2="200" stroke="#34495e" stroke-width="2"/>
+  <line x1="400" y1="140" x2="625" y2="200" stroke="#34495e" stroke-width="2"/>
+  <line x1="400" y1="260" x2="400" y2="350" stroke="#34495e" stroke-width="2"/>
+  <line x1="400" y1="410" x2="400" y2="480" stroke="#34495e" stroke-width="2"/>
+  
+  <text x="400" y="30" text-anchor="middle" font-size="20" font-weight="bold">Figure 4: Identity Synchronization</text>
+</svg>

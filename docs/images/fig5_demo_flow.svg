@@ -1,0 +1,45 @@
+<svg width="1000" height="700" xmlns="http://www.w3.org/2000/svg">
+  <!-- Figure 5: M6 End-to-End Verification Flow -->
+  
+  <!-- Step 1 -->
+  <rect x="100" y="80" width="200" height="50" rx="10" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="200" y="110" text-anchor="middle" fill="white" font-size="12" font-weight="bold">Step 1: MeshIdentity Reg</text>
+  
+  <!-- Step 2 -->
+  <rect x="100" y="160" width="200" height="50" rx="10" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="200" y="190" text-anchor="middle" fill="white" font-size="12" font-weight="bold">Step 2: MemGuard Auth</text>
+  
+  <!-- Step 3 -->
+  <rect x="100" y="240" width="200" height="50" rx="10" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="200" y="270" text-anchor="middle" fill="white" font-size="12" font-weight="bold">Step 3: Polaris Drift</text>
+  
+  <!-- Step 4 -->
+  <rect x="100" y="320" width="200" height="50" rx="10" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="200" y="350" text-anchor="middle" fill="white" font-size="12" font-weight="bold">Step 4: Query Identity</text>
+  
+  <!-- Step 5 -->
+  <rect x="100" y="400" width="200" height="50" rx="10" fill="#3498db" stroke="#2980b9" stroke-width="2"/>
+  <text x="200" y="430" text-anchor="middle" fill="white" font-size="12" font-weight="bold">Step 5: Batch Calibration</text>
+  
+  <!-- Step 6 -->
+  <rect x="100" y="480" width="200" height="50" rx="10" fill="#2ecc71" stroke="#27ae60" stroke-width="2"/>
+  <text x="200" y="510" text-anchor="middle" fill="white" font-size="12" font-weight="bold">Step 6: Closed-Loop Verify</text>
+  
+  <!-- Verification Result Box -->
+  <rect x="400" y="250" width="300" height="200" rx="10" fill="#d5f4e6" stroke="#27ae60" stroke-width="3"/>
+  <text x="550" y="290" text-anchor="middle" font-size="16" font-weight="bold">Verification Result</text>
+  <text x="420" y="330" font-size="14">✓ MeshIdentity: Identity Anchoring</text>
+  <text x="420" y="370" font-size="14">✓ MemGuard: Memory Security</text>
+  <text x="420" y="410" font-size="14">✓ Polaris: Personality Stability</text>
+  <text x="420" y="450" font-size="12" font-weight="bold">Closed-Loop: All 3 Layers Verified</text>
+  
+  <!-- Arrows connecting steps -->
+  <line x1="200" y1="130" x2="200" y2="160" stroke="#34495e" stroke-width="2"/>
+  <line x1="200" y1="210" x2="200" y2="240" stroke="#34495e" stroke-width="2"/>
+  <line x1="200" y1="290" x2="200" y2="320" stroke="#34495e" stroke-width="2"/>
+  <line x1="200" y1="370" x2="200" y2="400" stroke="#34495e" stroke-width="2"/>
+  <line x1="200" y1="450" x2="200" y2="480" stroke="#34495e" stroke-width="2"/>
+  <line x1="300" y1="505" x2="400" y2="350" stroke="#34495e" stroke-width="2"/>
+  
+  <text x="500" y="30" text-anchor="middle" font-size="20" font-weight="bold">Figure 5: M6 End-to-End Verification</text>
+</svg>
