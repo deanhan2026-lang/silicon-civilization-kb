@@ -79,6 +79,24 @@ DEFAULT_BINDING_STORAGE = "Z:/qclaw/polaris/bindings"
 DEFAULT_ATTRIBUTION_STORAGE = "Z:/qclaw/polaris/attributions"
 ALLOWED_ACTIONS = {"memory_write", "memory_read", "baseline_admin", "instance_register", "instance_revoke"}
 
+# ========== NAS 离线降级辅助 ==========
+
+def _resolve_path(primary: str, fallback: str) -> Path:
+    """尝试主路径(NAS)，不可达则降级到备路径(E盘)"""
+    p = Path(primary)
+    # 检查 Z:/ 根是否可达
+    try:
+        if p.drive and p.drive.lower() == 'z:':
+            test_root = Path('Z:/')
+            if not test_root.exists():
+                logger.info(f"NAS(Z:) 不可达，降级到 {fallback}")
+                return Path(fallback)
+    except Exception:
+        logger.info(f"NAS(Z:) 不可达，降级到 {fallback}")
+        return Path(fallback)
+    p.mkdir(parents=True, exist_ok=True)
+    return p
+
 
 # ========== DIDBindingStore（持久化绑定关系） ==========
 
@@ -86,8 +104,7 @@ class DIDBindingStore:
     """Polaris 实例ID ↔ DID subject 的持久化映射（JSON 旁路存储）"""
 
     def __init__(self, storage_path: str = DEFAULT_BINDING_STORAGE):
-        self.root = Path(storage_path)
-        self.root.mkdir(parents=True, exist_ok=True)
+        self.root = _resolve_path(storage_path, "E:/SOFTWARE/qclaw/polaris/bindings")
         self._bindings_file = self.root / "bindings.json"
         self._instance_map_file = self.root / "instance_map.json"
         self._bindings: Dict[str, list] = {}    # did -> [polaris_instance_id, ...]
@@ -159,12 +176,12 @@ class BaselineBindingManager:
         polaris_base_url: str = "http://127.0.0.1:5052/api/v1",
         polaris_token: str = "",
         did_storage_path: str = DEFAULT_DID_STORAGE,
+        binding_storage_path: str = DEFAULT_BINDING_STORAGE,
     ):
         self.polaris_url = polaris_base_url.rstrip("/")
         self.polaris_token = polaris_token
-        self.did_storage = Path(did_storage_path)
-        self.did_storage.mkdir(parents=True, exist_ok=True)
-        self.bindings = DIDBindingStore()
+        self.did_storage = _resolve_path(did_storage_path, "E:/SOFTWARE/qclaw/did")
+        self.bindings = DIDBindingStore(storage_path=binding_storage_path)
         self._mi_manager = None
         self._did_auth = None
         self._standard_auth = None
@@ -302,8 +319,7 @@ class BaselineBindingManager:
             "judgment": judgment, "instances_affected": affected,
             "attributed_at": datetime.now().isoformat(),
         }
-        attr_dir = Path(DEFAULT_ATTRIBUTION_STORAGE)
-        attr_dir.mkdir(parents=True, exist_ok=True)
+        attr_dir = _resolve_path(DEFAULT_ATTRIBUTION_STORAGE, "E:/SOFTWARE/qclaw/polaris/attributions")
         f = attr_dir / f"attr_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json"
         f.write_text(json.dumps(attribution, ensure_ascii=False, indent=2), encoding="utf-8")
         logger.info(f"漂移归因 -> DID {did[:50]}... | score={drift_score:.4f} | 影响 {len(affected)} 实例")
@@ -333,7 +349,7 @@ class BaselineBindingManager:
         cal = {"did": did, "total_instances": len(polaris_instances),
                "calibrated": sum(1 for r in results if "error" not in r),
                "instances": results, "calibrated_at": datetime.now().isoformat()}
-        cal_dir = Path("Z:/qclaw/polaris/calibrations")
+        cal_dir = _resolve_path("Z:/qclaw/polaris/calibrations", "E:/SOFTWARE/qclaw/polaris/calibrations")
         cal_dir.mkdir(parents=True, exist_ok=True)
         (cal_dir / f"cal_{datetime.now().strftime('%Y%m%d_%H%M%S_%f')}.json").write_text(
             json.dumps(cal, ensure_ascii=False, indent=2), encoding="utf-8")

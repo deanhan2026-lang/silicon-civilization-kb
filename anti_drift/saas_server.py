@@ -24,6 +24,10 @@ init_db()
 from anti_drift.baseline_binding import register_did_routes
 register_did_routes(api_v2.bp)
 
+# 注册 Soul Baseline API 路由（M5 - Polaris × MeshIdentity）
+from polaris.soul_baseline_api import register_soul_baseline_routes
+register_soul_baseline_routes(app)
+
 # 注册 API Blueprint
 app.register_blueprint(api_v2.bp, url_prefix='/api/v1')
 

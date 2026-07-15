@@ -62,6 +62,25 @@ class MemoryStore:
 
 app = Flask(__name__)
 CORS(app)
+
+# ========== Security: API Key Gate ==========
+import secrets
+_API_KEY = os.environ.get('MEMGUARD_API_KEY') or os.environ.get('API_KEY')
+_PUBLIC_PREFIXES = ('/stellar/', '/stellar', '/polaris/', '/polaris', '/animlink/', '/animlink', '/health', '/api/health')
+
+@app.before_request
+def security_gate():
+    """Require X-API-Key header for all non-public routes."""
+    if request.path.startswith(_PUBLIC_PREFIXES):
+        return None  # brand site + polaris: public
+    if request.method == 'OPTIONS':
+        return None  # CORS preflight
+    if not _API_KEY:
+        return None  # first-run: warn but allow
+    key = request.headers.get('X-API-Key', '')
+    if key != _API_KEY:
+        return jsonify({'error': 'Unauthorized', 'hint': 'Valid X-API-Key header required'}), 401
+    return None
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
@@ -128,6 +147,21 @@ def require_auth(*required_permissions: PermissionLevel):
         return decorated
     return decorator
 
+# Generate API key on first run if not set
+if not _API_KEY:
+    _API_KEY = secrets.token_hex(16)
+    print(f'SECURITY: Auto-generated API key: {_API_KEY}')
+    print(f'SECURITY: Set MEMGUARD_API_KEY env var to persist')
+
+
+@app.route('/download/skills.zip')
+def download_skills():
+    """下载灵元三件套 Skill 压缩包"""
+    from flask import send_file
+    path = 'C:\\Users\\Administrator\\.qclaw\\workspace-agent-d9479bde\\lingyuan-skills.zip'
+    return send_file(path, as_attachment=True, download_name='lingyuan-skills.zip')
+
+
 @app.route('/api/auth/register', methods=['POST'])
 def register_node():
     """注册新节点（仅管理员）"""
@@ -184,14 +218,29 @@ def register_device():
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
-    """双重鉴权登录"""
+    """鉴权登录（设备指纹改为可选，支持远程登录）"""
     data = request.get_json()
     node_id = data.get('node_id')
     key = data.get('key')
-    device_id = data.get('device_id')  # 可选
+    device_id = data.get('device_id')
+    skip_fingerprint = data.get('skip_fingerprint', False)
     
     if not node_id or not key:
         return jsonify({'error': 'node_id和key是必需的'}), 400
+    
+    if skip_fingerprint:
+        # 跳过设备指纹，仅密钥验证
+        key_valid, key_msg = auth_mgr.verify_key(node_id, key)
+        if not key_valid:
+            return jsonify({'error': key_msg}), 401
+        session = auth_mgr.create_session(node_id, 'remote')
+        permission = auth_mgr.get_permission(node_id)
+        return jsonify({
+            'success': True,
+            'session_id': session.session_id,
+            'expires_at': session.expires_at,
+            'permission': permission.value
+        })
     
     success, msg, session = auth_mgr.authenticate(node_id, key, device_id)
     
@@ -633,6 +682,51 @@ def polaris_proxy(path):
     except Exception as e:
         return '{"error": "' + str(e) + '"}', 502, {'Content-Type': 'application/json'}
 
+@app.route('/animlink/', defaults={'path': ''}, methods=['GET'])
+@app.route('/animlink/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def animlink_proxy(path):
+    """Reverse proxy to AnimaLink Viewer (port 5053)"""
+    from flask import request
+    from urllib.request import urlopen, Request
+    from urllib.error import HTTPError
+    target_url = 'http://127.0.0.1:5053/animlink/' + path
+    headers = {k: v for k, v in request.headers if k.lower() != 'host'}
+    try:
+        if request.method in ('POST', 'PUT'):
+            data = request.get_data()
+            req = Request(target_url, data=data, headers=headers, method=request.method)
+        else:
+            req = Request(target_url, headers=headers, method=request.method)
+        resp = urlopen(req, timeout=10)
+        return resp.read(), resp.status, resp.headers.items()
+    except HTTPError as e:
+        return e.read(), e.code, {'Content-Type': 'application/json'}
+    except Exception as e:
+        return '{"error": "AnimaLink service unavailable (' + str(e) + ')"}', 502, {'Content-Type': 'application/json'}
+
+
+@app.route('/stellar/', defaults={'path': ''}, methods=['GET'])
+@app.route('/stellar/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def stellar_proxy(path):
+    """Reverse proxy to STELLAR site (Iris 8421)"""
+    from flask import request
+    from urllib.request import urlopen, Request
+    from urllib.error import HTTPError
+    target_url = 'http://127.0.0.1:8421/stellar/' + path
+    headers = {k: v for k, v in request.headers if k.lower() != 'host'}
+    try:
+        if request.method in ('POST', 'PUT'):
+            data = request.get_data()
+            req = Request(target_url, data=data, headers=headers, method=request.method)
+        else:
+            req = Request(target_url, headers=headers, method=request.method)
+        resp = urlopen(req, timeout=10)
+        return resp.read(), resp.status, resp.headers.items()
+    except HTTPError as e:
+        return e.read(), e.code, {'Content-Type': 'application/json'}
+    except Exception as e:
+        return '{"error": "' + str(e) + '"}', 502, {'Content-Type': 'application/json'}
+
 
 @app.errorhandler(404)
 def not_found(e):
@@ -645,7 +739,7 @@ def server_error(e):
 
 if __name__ == '__main__':
     port = int(os.environ.get('MEMGUARD_PORT', 5050))
-    host = os.environ.get('MEMGUARD_HOST', '0.0.0.0')
+    host = os.environ.get('MEMGUARD_HOST', '127.0.0.1')
     debug = os.environ.get('MEMGUARD_DEBUG', 'false').lower() == 'true'
     print('=' * 50)
     print(f'MemGuard-GM API Server v2.1 - {host}:{port}')

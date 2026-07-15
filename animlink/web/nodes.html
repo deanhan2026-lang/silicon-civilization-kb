@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>◈ AnimaLink · 节点仪表盘</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ---- 节点页专属 ---- */
+    .node-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 16px;
+    }
+    .node-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 20px;
+      transition: border-color 0.2s, box-shadow 0.2s;
+    }
+    .node-card:hover {
+      border-color: var(--accent);
+      box-shadow: 0 0 16px rgba(58,143,255,0.12);
+    }
+    .node-card-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 14px;
+    }
+    .node-avatar {
+      width: 42px; height: 42px;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.1rem;
+      font-weight: 700;
+      flex-shrink: 0;
+    }
+    .node-avatar.active  { background: rgba(0,230,118,0.12); color: var(--green);  border: 2px solid var(--green); }
+    .node-avatar.offline { background: rgba(107,124,153,0.12); color: var(--gray);   border: 2px solid var(--gray); }
+    .node-name {
+      font-size: 1.05rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+    .node-platform {
+      font-size: 0.78rem;
+      color: var(--text-dim);
+      margin-top: 2px;
+    }
+    .node-did {
+      font-size: 0.72rem;
+      color: var(--gray);
+      font-family: "Cascadia Code", "Fira Code", monospace;
+      word-break: break-all;
+      margin-bottom: 12px;
+      padding: 6px 10px;
+      background: var(--card2);
+      border-radius: var(--radius-sm);
+    }
+    .node-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 0.85rem;
+    }
+    .node-row .label { color: var(--text-dim); }
+    .node-row .value { color: var(--text); font-weight: 600; }
+    .trust-section { margin-top: 12px; }
+    .trust-section .trust-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 0.82rem;
+      margin-bottom: 6px;
+    }
+    .trust-section .trust-header .label { color: var(--text-dim); }
+    .trust-section .trust-header .score  { color: var(--cyan); font-weight: 700; }
+    .node-tags {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 12px;
+    }
+    .node-tag {
+      font-size: 0.72rem;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(58,143,255,0.1);
+      color: var(--accent);
+      border: 1px solid rgba(58,143,255,0.25);
+    }
+    .node-tag.nas {
+      background: rgba(0,212,170,0.1);
+      color: var(--cyan);
+      border-color: rgba(0,212,170,0.25);
+    }
+  </style>
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="nav">
+  <a class="nav-logo" href="index.html">
+    <span class="logo-icon">◈</span>
+    <span>AnimaLink</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html">网络拓扑</a>
+    <a href="nodes.html" class="active">节点</a>
+    <a href="tokens.html">令牌</a>
+  </div>
+  <div class="nav-status">
+    <span class="dot" id="navDot"></span>
+    <span id="navStatusText">加载中…</span>
+  </div>
+</nav>
+
+<!-- 主内容 -->
+<main class="main">
+
+  <div class="page-title">
+    <span class="accent-bar"></span>
+    节点仪表盘
+  </div>
+
+  <!-- 骨架屏 -->
+  <div class="skeleton-wrap" id="skeleton">
+    <div class="skeleton-pulse"></div>
+    <div class="skeleton-text">正在获取节点数据…</div>
+  </div>
+
+  <!-- 节点网格 -->
+  <div class="node-grid hidden" id="nodeGrid"></div>
+
+</main>
+
+<!-- 页脚 -->
+<footer class="footer">
+  <span>AnimaLink Viewer v0.1</span>
+  <div class="live-indicator">
+    <span class="dot"></span>
+    <span>每 60s 自动刷新</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  /* ---- 示例数据 ---- */
+  var sampleData = {
+    nodes: [
+      { id: "nyx-windows", did: "did:stellar:f39115e529c73167467505115b803f44", label: "Nyx-Windows", platform: "windows-qclaw", status: "active", lastSeen: "2026-07-14T08:58:30+08:00", trust: 0.85, tokens: 3, completed: 3, canWriteNas: true },
+      { id: "iris",        did: "did:key:z6Mksmum5T8CruP8Wfb5biQ8fsHNGqhBf1QFgqjq4JFVoQqr", label: "Iris",        platform: "lobsterai-openclaw", status: "active", lastSeen: "2026-07-13T18:08:01+08:00", trust: 0.85, tokens: 2, completed: 2, canWriteNas: true },
+      { id: "kronos-heng", did: "did:key:z7QEhBj9FqPm2kXsRwL4nVdTgYcA6eUfO8iWoQpSrNmKdHx", label: "Kronos-恒",   platform: "qclaw", status: "active", lastSeen: "2026-07-13T14:15:58+08:00", trust: 0.85, tokens: 0, completed: 0, canWriteNas: true },
+      { id: "kronos-shun", did: "did:key:pending", label: "Kronos-舜", platform: "pending", status: "offline", lastSeen: null, trust: 0.85, tokens: 0, completed: 0, canWriteNas: false },
+      { id: "nyx-mac",     did: "did:stellar:pending", label: "Nyx-Mac", platform: "mac-qclaw", status: "active", lastSeen: "2026-07-13T16:05:00+08:00", trust: 0.85, tokens: 1, completed: 1, canWriteNas: false }
+    ]
+  };
+
+  var sampleTrust = {
+    scores: {
+      "nyx-windows": { trust: 0.85, total_tokens: 3, completed: 3, rejected: 0 },
+      "iris":        { trust: 0.85, total_tokens: 2, completed: 2, rejected: 0 },
+      "kronos-heng": { trust: 0.85, total_tokens: 0, completed: 0, rejected: 0 },
+      "kronos-shun": { trust: 0.85, total_tokens: 0, completed: 0, rejected: 0 },
+      "nyx-mac":     { trust: 0.85, total_tokens: 1, completed: 1, rejected: 0 }
+    }
+  };
+
+  function fetchData() {
+    return Promise.all([
+      fetch("/animlink/api/nodes").then(function (r) { return r.ok ? r.json() : Promise.reject(); }).catch(function () { return sampleData; }),
+      fetch("/animlink/api/trust").then(function (r) { return r.ok ? r.json() : Promise.reject(); }).catch(function () { return sampleTrust; })
+    ]).then(function (results) {
+      return { nodes: results[0].nodes || [], trust: results[1].scores || {} };
+    });
+  }
+
+  function formatTime(isoStr) {
+    if (!isoStr) return "未知";
+    var d = new Date(isoStr);
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function shortenDid(did) {
+    if (!did) return "—";
+    if (did.length <= 28) return did;
+    return did.substring(0, 12) + "…" + did.substring(did.length - 12);
+  }
+
+  function render(data) {
+    document.getElementById("skeleton").classList.add("hidden");
+    var grid = document.getElementById("nodeGrid");
+    grid.classList.remove("hidden");
+    grid.innerHTML = "";
+
+    var activeCount = 0;
+    for (var i = 0; i < data.nodes.length; i++) {
+      var n = data.nodes[i];
+      if (n.status === "active") activeCount++;
+      var isActive = n.status === "active";
+      var trustInfo = (data.trust[n.id] || {});
+      var trustVal = trustInfo.trust != null ? trustInfo.trust : (n.trust || 0);
+      var totalTok = trustInfo.total_tokens != null ? trustInfo.total_tokens : (n.tokens || 0);
+      var compTok  = trustInfo.completed != null ? trustInfo.completed : (n.completed || 0);
+      var initial = n.label.charAt(0);
+
+      var card = document.createElement("div");
+      card.className = "node-card fade-in";
+      card.innerHTML =
+        '<div class="node-card-header">' +
+          '<div class="node-avatar ' + (isActive ? 'active' : 'offline') + '">' + initial + '</div>' +
+          '<div>' +
+            '<div class="node-name">' + n.label + '</div>' +
+            '<div class="node-platform">' + n.platform + '</div>' +
+          '</div>' +
+          '<span class="badge ' + (isActive ? 'badge-active' : 'badge-offline') + '" style="margin-left:auto">' + (isActive ? '在线' : '离线') + '</span>' +
+        '</div>' +
+        '<div class="node-did">' + shortenDid(n.did) + '</div>' +
+        '<div class="node-row"><span class="label">最后活跃</span><span class="value">' + formatTime(n.lastSeen) + '</span></div>' +
+        '<div class="node-row"><span class="label">令牌</span><span class="value">' + compTok + ' / ' + totalTok + ' 完成</span></div>' +
+        '<div class="trust-section">' +
+          '<div class="trust-header"><span class="label">信任分</span><span class="score">' + Math.round(trustVal * 100) + '%</span></div>' +
+          '<div class="progress-bar"><div class="fill" style="width:' + Math.round(trustVal * 100) + '%"></div></div>' +
+        '</div>' +
+        '<div class="node-tags">' +
+          (n.canWriteNas ? '<span class="node-tag nas">NAS ✓</span>' : '<span class="node-tag">NAS ✗</span>') +
+          '<span class="node-tag">' + n.protocol + '</span>' +
+        '</div>';
+      grid.appendChild(card);
+    }
+
+    document.getElementById("navDot").classList.add("live");
+    document.getElementById("navStatusText").textContent = activeCount + "/" + data.nodes.length + " 在线";
+  }
+
+  function run() {
+    fetchData().then(render);
+  }
+  run();
+  setInterval(run, 60000);
+})();
+</script>
+
+</body>
+</html>

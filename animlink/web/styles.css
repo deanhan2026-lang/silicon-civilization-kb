@@ -1,0 +1,296 @@
+/* AnimaLink Viewer — 共享样式 */
+
+/* ===========================
+   变量 & 重置
+   =========================== */
+:root {
+  --bg:        #0a0e1a;
+  --card:      #111827;
+  --card2:     #1a2332;
+  --border:    #1f2d45;
+  --accent:    #3a8fff;
+  --cyan:      #00d4aa;
+  --green:     #00e676;
+  --yellow:    #ffd600;
+  --red:       #ff5252;
+  --gray:      #6b7c99;
+  --text:      #e2e8f0;
+  --text-dim:  #8899b5;
+  --nav-h:     56px;
+  --footer-h:  40px;
+  --radius:    12px;
+  --radius-sm: 8px;
+  --shadow:    0 4px 24px rgba(0,0,0,0.5);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html {
+  font-family: "PingFang SC", "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 15px;
+  scroll-behavior: smooth;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ===========================
+   导航栏
+   =========================== */
+.nav {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  height: var(--nav-h);
+  background: rgba(10,14,26,0.92);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 0;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: 0.05em;
+  text-decoration: none;
+  margin-right: 32px;
+  flex-shrink: 0;
+}
+
+.nav-logo .logo-icon {
+  font-size: 1.3rem;
+}
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 1;
+}
+
+.nav-links a {
+  color: var(--text-dim);
+  text-decoration: none;
+  padding: 6px 14px;
+  border-radius: var(--radius-sm);
+  font-size: 0.9rem;
+  transition: color 0.2s, background 0.2s;
+  letter-spacing: 0.02em;
+}
+
+.nav-links a:hover {
+  color: var(--text);
+  background: var(--card);
+}
+
+.nav-links a.active {
+  color: var(--accent);
+  background: rgba(58,143,255,0.1);
+}
+
+.nav-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--text-dim);
+  margin-left: auto;
+}
+
+.nav-status .dot {
+  width: 7px; height: 7px;
+  border-radius: 50%;
+  background: var(--gray);
+  transition: background 0.3s;
+}
+
+.nav-status .dot.live { background: var(--green); box-shadow: 0 0 6px var(--green); animation: pulse-dot 2s infinite; }
+
+@keyframes pulse-dot {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+/* ===========================
+   页脚
+   =========================== */
+.footer {
+  margin-top: auto;
+  height: var(--footer-h);
+  border-top: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 20px;
+  font-size: 0.78rem;
+  color: var(--gray);
+}
+
+.footer .live-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer .live-indicator .dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 5px var(--green);
+  animation: pulse-dot 2s infinite;
+}
+
+/* ===========================
+   主内容区
+   =========================== */
+.main {
+  flex: 1;
+  padding: 24px 20px 32px;
+  max-width: 1100px;
+  width: 100%;
+  margin: 0 auto;
+}
+
+.page-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: var(--text);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.page-title .accent-bar {
+  width: 4px; height: 22px;
+  background: var(--accent);
+  border-radius: 2px;
+}
+
+/* ===========================
+   骨架屏
+   =========================== */
+.skeleton-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300px;
+  gap: 16px;
+  color: var(--gray);
+}
+
+.skeleton-pulse {
+  width: 60px; height: 60px;
+  border-radius: 50%;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.skeleton-text { font-size: 0.9rem; color: var(--text-dim); }
+
+.skeleton-grid {
+  display: grid;
+  gap: 16px;
+}
+
+.skeleton-card {
+  background: var(--card);
+  border-radius: var(--radius);
+  padding: 20px;
+  animation: pulse-card 1.5s ease-in-out infinite;
+}
+
+@keyframes pulse-card {
+  0%,100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+/* ===========================
+   错误状态
+   =========================== */
+.error-wrap {
+  text-align: center;
+  padding: 48px 20px;
+  color: var(--text-dim);
+}
+
+.error-wrap .err-icon { font-size: 2.5rem; margin-bottom: 12px; }
+.error-wrap p { font-size: 0.9rem; }
+
+/* ===========================
+   状态徽章
+   =========================== */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 20px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+.badge-active   { background: rgba(0,230,118,0.12); color: var(--green);  border: 1px solid rgba(0,230,118,0.3); }
+.badge-offline  { background: rgba(107,124,153,0.12); color: var(--gray);   border: 1px solid rgba(107,124,153,0.3); }
+.badge-pending  { background: rgba(255,214,0,0.12);  color: var(--yellow); border: 1px solid rgba(255,214,0,0.3); }
+.badge-completed { background: rgba(0,212,170,0.12); color: var(--cyan);   border: 1px solid rgba(0,212,170,0.3); }
+.badge-failed   { background: rgba(255,82,82,0.12);  color: var(--red);   border: 1px solid rgba(255,82,82,0.3); }
+
+/* ===========================
+   进度条
+   =========================== */
+.progress-bar {
+  width: 100%;
+  height: 6px;
+  background: var(--card2);
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.progress-bar .fill {
+  height: 100%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), var(--cyan));
+  transition: width 0.6s ease;
+}
+
+/* ===========================
+   工具函数
+   =========================== */
+.hidden { display: none !important; }
+.fade-in { animation: fadeIn 0.4s ease; }
+
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* ===========================
+   响应式
+   =========================== */
+@media (max-width: 640px) {
+  .nav { padding: 0 12px; }
+  .nav-logo span { display: none; }
+  .nav-links a { padding: 6px 10px; font-size: 0.85rem; }
+  .main { padding: 16px 12px 24px; }
+  .page-title { font-size: 1.15rem; }
+  .footer { padding: 0 12px; font-size: 0.72rem; }
+}

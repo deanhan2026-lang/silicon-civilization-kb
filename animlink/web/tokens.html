@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>◈ AnimaLink · 令牌历史</title>
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    /* ---- 令牌页专属 ---- */
+    .timeline {
+      position: relative;
+      padding-left: 32px;
+    }
+    .timeline::before {
+      content: "";
+      position: absolute;
+      left: 11px;
+      top: 0;
+      bottom: 0;
+      width: 2px;
+      background: var(--border);
+    }
+    .timeline-item {
+      position: relative;
+      margin-bottom: 20px;
+      padding: 18px 20px;
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: border-color 0.2s;
+    }
+    .timeline-item:hover {
+      border-color: var(--accent);
+    }
+    .timeline-dot {
+      position: absolute;
+      left: -27px;
+      top: 22px;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 2px solid var(--accent);
+      background: var(--bg);
+    }
+    .timeline-dot.completed { border-color: var(--cyan);   background: rgba(0,212,170,0.3); }
+    .timeline-dot.pending   { border-color: var(--yellow); background: rgba(255,214,0,0.3); }
+    .timeline-dot.failed    { border-color: var(--red);    background: rgba(255,82,82,0.3); }
+
+    .tl-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-bottom: 8px;
+    }
+    .tl-id {
+      font-size: 1rem;
+      font-weight: 700;
+      color: var(--accent);
+      font-family: "Cascadia Code", "Fira Code", monospace;
+    }
+    .tl-flow {
+      font-size: 0.88rem;
+      color: var(--text-dim);
+      flex: 1;
+    }
+    .tl-flow .arrow {
+      color: var(--cyan);
+      margin: 0 4px;
+      font-weight: 700;
+    }
+    .tl-summary {
+      font-size: 0.85rem;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .tl-meta {
+      display: flex;
+      gap: 16px;
+      font-size: 0.78rem;
+      color: var(--gray);
+    }
+    .tl-meta span {
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    /* 筛选栏 */
+    .filter-bar {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+    }
+    .filter-btn {
+      padding: 6px 16px;
+      border-radius: 20px;
+      border: 1px solid var(--border);
+      background: transparent;
+      color: var(--text-dim);
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      font-family: inherit;
+    }
+    .filter-btn:hover {
+      border-color: var(--accent);
+      color: var(--text);
+    }
+    .filter-btn.active {
+      background: rgba(58,143,255,0.15);
+      border-color: var(--accent);
+      color: var(--accent);
+    }
+  </style>
+</head>
+<body>
+
+<!-- 导航栏 -->
+<nav class="nav">
+  <a class="nav-logo" href="index.html">
+    <span class="logo-icon">◈</span>
+    <span>AnimaLink</span>
+  </a>
+  <div class="nav-links">
+    <a href="index.html">网络拓扑</a>
+    <a href="nodes.html">节点</a>
+    <a href="tokens.html" class="active">令牌</a>
+  </div>
+  <div class="nav-status">
+    <span class="dot" id="navDot"></span>
+    <span id="navStatusText">加载中…</span>
+  </div>
+</nav>
+
+<!-- 主内容 -->
+<main class="main">
+
+  <div class="page-title">
+    <span class="accent-bar"></span>
+    令牌历史
+  </div>
+
+  <!-- 筛选 -->
+  <div class="filter-bar" id="filterBar">
+    <button class="filter-btn active" data-filter="all">全部</button>
+    <button class="filter-btn" data-filter="completed">已完成</button>
+    <button class="filter-btn" data-filter="pending">进行中</button>
+    <button class="filter-btn" data-filter="failed">已失败</button>
+  </div>
+
+  <!-- 骨架屏 -->
+  <div class="skeleton-wrap" id="skeleton">
+    <div class="skeleton-pulse"></div>
+    <div class="skeleton-text">正在获取令牌数据…</div>
+  </div>
+
+  <!-- 时间线 -->
+  <div class="timeline hidden" id="timeline"></div>
+
+</main>
+
+<!-- 页脚 -->
+<footer class="footer">
+  <span>AnimaLink Viewer v0.1</span>
+  <div class="live-indicator">
+    <span class="dot"></span>
+    <span>每 60s 自动刷新</span>
+  </div>
+</footer>
+
+<script>
+(function () {
+  /* ---- 示例数据 ---- */
+  var sampleData = {
+    tokens: [
+      { id: "tk_animlink_frontend",  initiator: "nyx-windows", executor: "iris",        status: "pending",  created: "2026-07-14T09:06:00+08:00", summary: "AnimaLink Viewer 前端 UI" },
+      { id: "tk_animlink_backend",   initiator: "nyx-windows", executor: "kronos-heng", status: "pending",  created: "2026-07-14T09:00:00+08:00", summary: "AnimaLink 后端 API 开发" },
+      { id: "tk_anima_genesis_003",  initiator: "nyx-windows", executor: "iris",        status: "completed", created: "2026-07-13T15:08:25+08:00", summary: "品牌官网 MVP 交付（产品矩阵/协议设计/节点网络/时间线）" },
+      { id: "tk_anima_genesis_002",  initiator: "nyx-windows", executor: "iris",        status: "completed", created: "2026-07-13T15:00:00+08:00", summary: "AnimaID 公众注册系统（FastAPI + 注册页 + API）" },
+      { id: "tk_anima_genesis_001",  initiator: "nyx-windows", executor: "iris",        status: "completed", created: "2026-07-13T14:30:00+08:00", summary: "Iris 人格部署与就位" }
+    ]
+  };
+
+  function fetchData() {
+    return fetch("/animlink/api/tokens")
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
+      .catch(function () { return sampleData; });
+  }
+
+  function formatTime(isoStr) {
+    if (!isoStr) return "未知";
+    var d = new Date(isoStr);
+    var pad = function (n) { return (n < 10 ? "0" : "") + n; };
+    return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
+  }
+
+  function statusLabel(s) {
+    if (s === "completed") return "已完成";
+    if (s === "pending")   return "进行中";
+    if (s === "failed")    return "已失败";
+    return s;
+  }
+
+  function statusBadgeClass(s) {
+    if (s === "completed") return "badge-completed";
+    if (s === "pending")   return "badge-pending";
+    if (s === "failed")    return "badge-failed";
+    return "";
+  }
+
+  var currentFilter = "all";
+
+  function render(filter) {
+    currentFilter = filter || "all";
+    fetchData().then(function (data) {
+      var tokens = data.tokens || [];
+      document.getElementById("skeleton").classList.add("hidden");
+      var tl = document.getElementById("timeline");
+      tl.classList.remove("hidden");
+      tl.innerHTML = "";
+
+      var filtered = currentFilter === "all" ? tokens : tokens.filter(function (t) { return t.status === currentFilter; });
+
+      if (filtered.length === 0) {
+        tl.innerHTML = '<div class="error-wrap"><div class="err-icon">📭</div><p>暂无符合条件的令牌</p></div>';
+        return;
+      }
+
+      for (var i = 0; i < filtered.length; i++) {
+        var t = filtered[i];
+        var item = document.createElement("div");
+        item.className = "timeline-item fade-in";
+        item.innerHTML =
+          '<div class="timeline-dot ' + t.status + '"></div>' +
+          '<div class="tl-header">' +
+            '<span class="tl-id">' + t.id + '</span>' +
+            '<span class="badge ' + statusBadgeClass(t.status) + '">' + statusLabel(t.status) + '</span>' +
+          '</div>' +
+          '<div class="tl-summary">' + (t.summary || "") + '</div>' +
+          '<div class="tl-flow">' + t.initiator + ' <span class="arrow">→</span> ' + t.executor + '</div>' +
+          '<div class="tl-meta">' +
+            '<span>🕐 ' + formatTime(t.created) + '</span>' +
+          '</div>';
+        tl.appendChild(item);
+      }
+
+      document.getElementById("navDot").classList.add("live");
+      document.getElementById("navStatusText").textContent = tokens.length + " 枚令牌";
+    });
+  }
+
+  /* 筛选按钮 */
+  var bar = document.getElementById("filterBar");
+  if (bar) {
+    var btns = bar.querySelectorAll(".filter-btn");
+    for (var i = 0; i < btns.length; i++) {
+      btns[i].addEventListener("click", function () {
+        var allBtns = bar.querySelectorAll(".filter-btn");
+        for (var j = 0; j < allBtns.length; j++) allBtns[j].classList.remove("active");
+        this.classList.add("active");
+        render(this.getAttribute("data-filter"));
+      });
+    }
+  }
+
+  render("all");
+  setInterval(function () { render(currentFilter); }, 60000);
+})();
+</script>
+
+</body>
+</html>

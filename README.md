@@ -101,6 +101,10 @@ silicon-civilization-kb/
 ├── ANIMA/             # ANIMA Framework documents and artifacts
 │   ├── framework/     # Framework specifications and designs
 │   └── governance/    # Governance rules and contracts
+├── animlink/          # AnimaLink Network Visualizer
+│   ├── server.py      # Flask API server (port 5053)
+│   ├── data_reader.py # NAS data reader
+│   └── web/           # Frontend (index/nodes/tokens)
 ├── entries/           # Knowledge entries (organized by layer)
 │   ├── l1/            # Raw data / instrumentation layer
 │   ├── l2/            # Session memory layer
