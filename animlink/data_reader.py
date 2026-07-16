@@ -41,7 +41,7 @@ def _nas_read_json(rel_path):
     fp = os.path.join(NAS_ROOT, rel_path)
     try:
         data = open(fp, 'rb').read()
-        return json.loads(data.decode('utf-8'))
+        return json.loads(data.decode('utf-8-sig'))
     except Exception:
         return None
 
@@ -68,9 +68,12 @@ def _refresh_cache():
         display = {"nyx-windows": "Nyx-Windows", "iris": "Iris", 
                    "kronos-heng": "Kronos-恒", "kronos-shun": "Kronos-瞬", "nyx-mac": "Nyx-Mac"}
         for nid, ndata in registry.get("nodes", {}).items():
-            last_seen = ndata.get("lastSeen", "")
-            is_active = False
-            if last_seen:
+            last_seen = ndata.get("lastSeen", ndata.get("lastHeartbeat", ""))
+            # Trust the registry's status field first
+            reg_status = ndata.get("status", "")
+            is_active = (reg_status == "active")
+            # If no status field, fall back to time-based check
+            if not reg_status and last_seen:
                 try:
                     delta = abs((datetime.now() - datetime.fromisoformat(last_seen.replace("Z", "+00:00"))).total_seconds())
                     is_active = delta < 3600

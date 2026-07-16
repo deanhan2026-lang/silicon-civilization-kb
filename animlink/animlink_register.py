@@ -27,7 +27,7 @@ def ensure_dirs():
 
 def load_registry():
     if os.path.exists(REGISTRY_PATH):
-        with open(REGISTRY_PATH, 'r', encoding='utf-8') as f:
+        with open(REGISTRY_PATH, 'r', encoding='utf-8-sig') as f:
             return json.load(f)
     return {"nodes": {}}
 
@@ -38,7 +38,7 @@ def save_registry(reg):
 
 def load_trust():
     if os.path.exists(TRUST_PATH):
-        with open(TRUST_PATH, 'r', encoding='utf-8') as f:
+        with open(TRUST_PATH, 'r', encoding='utf-8-sig') as f:
             return json.load(f)
     return {"scores": {}}
 

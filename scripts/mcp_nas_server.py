@@ -73,7 +73,7 @@ def mount_nas() -> bool:
     nas_mount.mkdir(parents=True, exist_ok=True)
     
     try:
-        cmd = f'mount_smbfs "//DeanHan:Yhyc1131@100.65.105.57/SOFTWARE" {nas_mount}'
+        cmd = f'mount_smbfs "//anima:animastellar@100.107.156.33/SOFTWARE" {nas_mount}'
         result = subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
         return result.returncode == 0
     except Exception as e:
