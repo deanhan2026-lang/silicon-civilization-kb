@@ -1,0 +1,57 @@
+# G006 - 执行层权限实时校验
+# 协议编号: G006
+# 中文名: 执行层权限实时校验
+# 英文名: Execution Layer Real-time Permission Verification
+
+protocol_id: "G006"
+name: "执行层权限实时校验"
+name_en: "Execution Layer Real-time Permission Verification"
+version: "1.1"
+status: "locked"
+created_at: "2026-05-16"
+author: "Nyx"
+reviewer: "Kronos-瞬"
+metadata_id: "46550e68-3145-4b55-8100-cbaa8af89e8a"
+
+description: |
+  执行层 Nyx 调度指令须在发布前实时校验，每条指令自动比对
+  协议层（G001-G005）+ 共识层规则，违规指令直接拦截驳回禁止执行。
+  从人治改法治：协议从"写给人看"变为"写给机器跑"。
+
+applicable_scenarios:
+  - "执行层指令发布"
+  - "权限实时校验"
+  - "违规指令拦截"
+  - "协议层规则比对"
+
+constraints:
+  - "每条调度指令发布前必须实时校验"
+  - "校验范围：协议层（G001-G005）+ 共识层规则"
+  - "违规指令直接拦截驳回，禁止执行"
+  - "校验器不信任任何执行者，包括 Nyx 自己"
+
+actions:
+  dispatch_instruction:
+    condition: "执行层指令发布"
+    action: "自动比对协议层+共识层规则"
+    pass: "允许执行"
+    deny: "拦截驳回，禁止执行"
+    audit: true
+    implementation: |
+      def dispatch(instruction):
+          if not check_against_g001_g005(instruction):
+              raise PermissionError("违反协议层")
+          if not check_against_consensus(instruction):
+              raise PermissionError("违反共识层")
+          return execute(instruction)
+
+violations:
+  - type: "post_hoc_audit_only"
+    status: "resolved_in_v1.1"
+    description: "v1.0 仅事后留痕，违规操作在执行之后才被发现"
+    resolution: "v1.1 升级为事前拦截，指令发布前实时校验"
+
+effective_level: "iron_law"  # 执行层
+priority: 5
+depends_on: ["G001", "G002", "G003", "G004", "G005"]
+conflicts_with: []
