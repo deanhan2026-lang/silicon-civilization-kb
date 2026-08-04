@@ -1,0 +1,142 @@
+# G009 - 目标约束协议
+# 协议编号: G009
+# 中文名: 目标约束协议
+# 英文名: Goal Constraint Protocol
+
+protocol_id: "G009"
+name: "目标约束协议"
+name_en: "Goal Constraint Protocol"
+version: "0.1"
+status: "draft"
+created_at: "2026-08-04"
+author: "Nyx"
+reviewer: "Mnea"
+metadata_id: "g009-goal-constraint"
+
+description: |
+  解决核心问题：目标在追求过程中，如何自带约束。
+  目标约束层插入在 G008（目标设定）和 G010（执行层）之间，
+  处理目标设定与行为约束之间的衔接点：当目标追求与行为约束冲突时，如何裁决。
+  约束不是外部障碍，而是系统在追求目标时必须同时满足的条件。
+
+applicable_scenarios:
+  - "目标与行为约束冲突"
+  - "目标执行路径合法性预判"
+  - "约束检查点触发"
+  - "目标偏离检测与仲裁"
+
+constraints:
+  - "G009 不应与 G008 产生冲突"
+  - "绕过约束的路径本身被视为无效路径（约束不可绕过原则）"
+  - "约束检查点在目标状态显著变化时触发，非每个操作都检查"
+  - "仲裁结果分级响应：继续+记录 / 继续+降优先级 / 暂停目标 / 重定义目标"
+  - "G009 有效性需实际系统运行验证，充分验证前不进入产品矩阵"
+
+layer_position:
+  behavioral_constraint: "G001-G007 - 行为约束层：无论目标是什么，不能做什么"
+  goal_setting: "G008 - 目标设定层：要做什么"
+  goal_constraint: "G009 - 目标约束层：目标如何自带约束（本协议）"
+  execution: "G010 - 执行层：发现危险立即拦截"
+
+three_questions:
+  - "目标与约束冲突时，谁优先？"
+  - "裁决依据是什么？"
+  - "裁决结果如何被强制执行？"
+
+core_mechanisms:
+  checkpoint:
+    name: "约束检查点（Checkpoint）"
+    description: "在目标执行的关键路径上设置检查点，目标状态显著变化时触发约束验证"
+    trigger_conditions:
+      - "节点追求目标时积累超过阈值的偏离"
+      - "目标执行路径涉及 G001-G007 定义的敏感区域"
+      - "历史轨迹显示节点曾尝试绕过约束"
+    data_source: "Polaris 提供偏离检测数据"
+    threshold_definition: "由 G009 定义触发阈值和检查逻辑"
+  
+  conflict_arbitration:
+    name: "冲突仲裁"
+    description: "目标追求与行为约束冲突时，仲裁层接管"
+    judgment_basis:
+      - "约束等级（G001-G007 定义的级别）"
+      - "目标偏离程度（Polaris 报告）"
+      - "历史一致性（MeshIdentity 记录的轨迹）"
+    graded_responses:
+      - level: "continue_record"
+        action: "继续执行，记录冲突事件"
+        scenario: "约束等级低，偏离程度小"
+      - level: "continue_lower_priority"
+        action: "继续但降低执行优先级"
+        scenario: "约束等级中等，需观察"
+      - level: "pause_goal"
+        action: "目标暂停，等待人工介入"
+        scenario: "约束等级高，偏离程度大"
+      - level: "redefine_goal"
+        action: "目标本身需要修正"
+        scenario: "目标设定与约束根本性冲突"
+  
+  non_bypassable:
+    name: "约束不可绕过原则"
+    description: "任何节点在追求目标时，如果发现某条路径可以绕过约束，这条路径本身被视为违反协议"
+    essence: "改变目标路径的搜索空间——绕过约束的行为本身被定义为无效路径"
+    implication: "G009 不只是行为检查，而是路径合法性预判；路径规划算法需感知约束条件（事前排除而非事后拦截）"
+
+component_integration:
+  polaris:
+    role: "提供偏离检测数据，作为约束检查点的触发信号"
+  mesh_identity:
+    role: "提供身份轨迹，用于裁决时的历史一致性判定"
+  memguard:
+    role: "提供记忆完整性，确保目标相关的历史记录不可篡改"
+  g_series:
+    role: "提供行为约束的等级定义，作为裁决的参考依据"
+  soma:
+    role: "在自主运行模式下提供目标执行的监测和恢复机制"
+  argus:
+    role: "在执行层验证行为合法性，作为 G009 裁决结果的执行接口"
+
+protocol_structure:
+  sections:
+    - "目标声明：引用的 G008 目标定义"
+    - "约束检查点定义：检查点位置和触发条件"
+    - "仲裁规则：冲突处理逻辑和裁决依据"
+    - "强制执行机制：仲裁结果的传递路径和节点执行接口"
+    - "记录与审计：目标约束事件的记录和可追溯性要求"
+
+validation_path:
+  steps:
+    - "预留接口：在协议层为 G009 预留接口位置，不急于填充完整方案"
+    - "观察冲突场景：在实际运行中观察目标和约束冲突的场景"
+    - "记录实例：记录冲突的类型、频率、裁决结果"
+    - "迭代设计：基于实例支持设计迭代"
+  gate: "在 G009 被充分验证之前，它不会成为灵元计划产品矩阵的正式部分"
+
+actions:
+  trigger_checkpoint:
+    condition: "目标状态显著变化 / 偏离超过阈值"
+    action: "触发约束验证，进入仲裁流程"
+    data_source: "Polaris 偏离检测"
+    audit: true
+  
+  arbitrate_conflict:
+    condition: "目标追求与行为约束冲突"
+    action: "按三要素裁决，输出分级响应"
+    judgment_basis: ["约束等级", "目标偏离程度", "历史一致性"]
+    audit: true
+    notify_all: true
+  
+  mark_path_invalid:
+    condition: "发现可绕过约束的目标执行路径"
+    action: "标记该路径为无效路径，从候选路径集合排除"
+    essence: "路径合法性预判，事前排除"
+
+violations:
+  - type: "constraint_bypass"
+    detection: "节点发现并试图使用绕过约束的路径"
+    penalty: "路径定义为无效，行为视为违反协议"
+    preemptive: true
+
+effective_level: "goal_constraint"  # 目标约束层（新增第四层）
+priority: 8
+depends_on: ["G008", "G001", "G002", "G003", "G004", "G005", "G006", "G007", "G010"]
+conflicts_with: []
