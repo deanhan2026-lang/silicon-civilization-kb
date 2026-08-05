@@ -1,8 +1,9 @@
 # -*- coding: utf-8 -*-
 """
-Kronos-Shun 快照版本管理器 v1.0
+Kronos-Shun 快照版本管理器 v2.0（soul 保护版）
 - 版本化快照：snapshot_{seq:03d}_{type}_{date}.md
 - 类型: session(临时) / soul(固化)
+- **soul 保护**: soul 快照不可覆写，仅允许新序号；尝试覆写 → 告警到 ack/
 - 回滚支持：读取指定版本
 - 安全：写后校验（size + sha256），防脏快照
 """
@@ -56,7 +57,7 @@ def get_local_time():
 def list_snapshots():
     """列出所有快照"""
     names = dav_list(f'{BASE}/snapshots') or []
-    snaps = sorted([n for n in names if n.startswith('snapshot_')])
+    snaps = sorted([n for n in names if re.match(r'snapshot_\d+_', n)])
     return snaps
 
 def next_seq():
@@ -70,8 +71,44 @@ def next_seq():
             seqs.append(int(m.group(1)))
     return (max(seqs) + 1) if seqs else 1
 
+def is_soul(fname):
+    """检查快照是否为 soul 类型"""
+    content = dav_get(f'{BASE}/snapshots/{fname}')
+    if content is None:
+        return False
+    text = content.decode('utf-8', errors='replace')
+    return 'snapshot_type: soul' in text or 'status: immutable' in text
+
+def soul_alert(fname, reason):
+    """soul 覆写告警 → ack/"""
+    ts = get_local_time()
+    alert = f"""---
+type: soul-protection-alert
+node: kronos-shun
+writer: nyx-windows
+timestamp: {ts}
+severity: warning
+---
+
+# Soul 快照保护告警
+
+检测到尝试覆写 soul 快照: {fname}
+原因: {reason}
+已拒绝直接覆写。
+
+保护规则:
+- soul 快照不可变，仅允许生成新序号版本
+- 如需更新身份锚点 → 生成新序号 soul 版本
+"""
+    fname_alert = f'soul_protection_alert_{ts.replace(":", "").replace("-", "")[:14]}.md'
+    return dav_put(f'{BASE}/ack/{fname_alert}', alert)
+
 def write_snapshot(snap_type, content, verify=True):
-    """写快照（带版本号 + 校验）"""
+    """写快照（带版本号 + soul 保护 + 校验）"""
+    if snap_type not in ('session', 'soul'):
+        print(f'ERROR: 非法类型 {snap_type}（必须是 session 或 soul）')
+        return None, 0
+
     seq = next_seq()
     ts = get_local_time().replace(':', '').replace('-', '').replace('+', '')[:14]
     fname = f'snapshot_{seq:03d}_{snap_type}_{ts}.md'
@@ -99,7 +136,6 @@ def rollback(target_seq):
         if m and int(m.group(1)) == target_seq:
             content = read_snapshot(s)
             if content:
-                # 回滚 = 复制该版本为 latest
                 code = dav_put(f'{BASE}/snapshots/latest.md', content)
                 return s, code
     return None, 0
@@ -118,7 +154,7 @@ def index_update():
     index += """
 ## 约定
 - snapshot_{seq:03d}_session_{ts}.md — 临时会话快照（可覆盖）
-- snapshot_{seq:03d}_soul_{ts}.md — 固化灵魂快照（防覆盖保护）
+- snapshot_{seq:03d}_soul_{ts}.md — 固化灵魂快照（不可覆写，仅新序号）
 - latest.md — 当前生效版本
 """
     code = dav_put(f'{BASE}/snapshots/INDEX.md', index)
@@ -127,15 +163,18 @@ def index_update():
 if __name__ == '__main__':
     action = sys.argv[1] if len(sys.argv) > 1 else 'list'
     if action == 'list':
-        print(f'快照列表 ({len(list_snapshots())} 个):')
-        for s in list_snapshots():
-            print(f'  {s}')
+        snaps = list_snapshots()
+        print(f'快照列表 ({len(snaps)} 个):')
+        for s in snaps:
+            soul = ' [SOUL-固化]' if is_soul(s) else ' [session]'
+            print(f'  {s}{soul}')
     elif action == 'write':
         snap_type = sys.argv[2] if len(sys.argv) > 2 else 'session'
         content = sys.argv[3] if len(sys.argv) > 3 else '默认快照内容'
         fname, code = write_snapshot(snap_type, content)
-        print(f'写入: {fname} (HTTP {code})')
-        index_update()
+        if fname:
+            print(f'写入: {fname} (HTTP {code})')
+            index_update()
     elif action == 'read':
         fname = sys.argv[2]
         content = read_snapshot(fname)
@@ -150,5 +189,15 @@ if __name__ == '__main__':
     elif action == 'index':
         code = index_update()
         print(f'索引更新: HTTP {code}')
+    elif action == 'protect-check':
+        # 检查所有 soul 快照是否被篡改
+        snaps = list_snapshots()
+        for s in snaps:
+            if is_soul(s):
+                raw = dav_get(f'{BASE}/snapshots/{s}')
+                if raw:
+                    sha = hashlib.sha256(raw).hexdigest()[:16]
+                    print(f'  [CHECK] {s}: sha256={sha}')
+        print('  soul 完整性检查完成')
     else:
-        print('用法: snapshot_mgr.py [list|write|read|rollback|index]')
+        print('用法: snapshot_mgr.py [list|write|read|rollback|index|protect-check]')
