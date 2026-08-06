@@ -145,9 +145,10 @@
   <!-- 筛选 -->
   <div class="filter-bar" id="filterBar">
     <button class="filter-btn active" data-filter="all">全部</button>
-    <button class="filter-btn" data-filter="completed">已完成</button>
-    <button class="filter-btn" data-filter="pending">进行中</button>
-    <button class="filter-btn" data-filter="failed">已失败</button>
+    <button class="filter-btn" data-filter="active">进行中</button>
+    <button class="filter-btn" data-filter="submitted">已交付</button>
+    <button class="filter-btn" data-filter="done">已完成</button>
+    <button class="filter-btn" data-filter="rejected">已驳回</button>
   </div>
 
   <!-- 骨架屏 -->
@@ -172,42 +173,46 @@
 
 <script>
 (function () {
-  /* ---- 示例数据 ---- */
-  var sampleData = {
-    tokens: [
-      { id: "tk_animlink_frontend",  initiator: "nyx-windows", executor: "iris",        status: "pending",  created: "2026-07-14T09:06:00+08:00", summary: "AnimaLink Viewer 前端 UI" },
-      { id: "tk_animlink_backend",   initiator: "nyx-windows", executor: "kronos-heng", status: "pending",  created: "2026-07-14T09:00:00+08:00", summary: "AnimaLink 后端 API 开发" },
-      { id: "tk_anima_genesis_003",  initiator: "nyx-windows", executor: "iris",        status: "completed", created: "2026-07-13T15:08:25+08:00", summary: "品牌官网 MVP 交付（产品矩阵/协议设计/节点网络/时间线）" },
-      { id: "tk_anima_genesis_002",  initiator: "nyx-windows", executor: "iris",        status: "completed", created: "2026-07-13T15:00:00+08:00", summary: "AnimaID 公众注册系统（FastAPI + 注册页 + API）" },
-      { id: "tk_anima_genesis_001",  initiator: "nyx-windows", executor: "iris",        status: "completed", created: "2026-07-13T14:30:00+08:00", summary: "Iris 人格部署与就位" }
-    ]
-  };
+  /* TOKEN-LIFECYCLE: 七态状态机标签 */
+  var LABELS = {issued:"已签发",accepted:"已接令",in_progress:"执行中",submitted:"已交付",verified:"已验证",archived:"已归档",rejected:"已驳回",completed:"已完成",pending:"进行中",acknowledged:"已接令",delivered:"已交付"};
 
   function fetchData() {
     return fetch("/animlink/api/tokens")
-      .then(function (r) { return r.ok ? r.json() : Promise.reject(); })
-      .catch(function () { return sampleData; });
+      .then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.json(); })
+      .catch(function (e) { throw e; }); // TOKEN-LIFECYCLE: 去掉 sample 假数据兜底
+  }
+
+  function esc(s) {
+    return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+      return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    });
   }
 
   function formatTime(isoStr) {
-    if (!isoStr) return "未知";
+    if (!isoStr) return "—";
     var d = new Date(isoStr);
+    if (isNaN(d)) return "—";
     var pad = function (n) { return (n < 10 ? "0" : "") + n; };
     return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) + " " + pad(d.getHours()) + ":" + pad(d.getMinutes());
   }
 
   function statusLabel(s) {
-    if (s === "completed") return "已完成";
-    if (s === "pending")   return "进行中";
-    if (s === "failed")    return "已失败";
-    return s;
+    return LABELS[s] || s || "未知";
   }
 
   function statusBadgeClass(s) {
-    if (s === "completed") return "badge-completed";
-    if (s === "pending")   return "badge-pending";
-    if (s === "failed")    return "badge-failed";
-    return "";
+    if (s === "verified" || s === "archived" || s === "completed") return "badge-completed";
+    if (s === "rejected") return "badge-failed";
+    return "badge-pending";
+  }
+
+  function filterMatch(t, f) {
+    if (f === "all") return true;
+    if (f === "active") return ["issued","accepted","in_progress","pending","acknowledged"].indexOf(t.status) >= 0;
+    if (f === "submitted") return t.status === "submitted" || t.status === "delivered";
+    if (f === "done") return ["verified","archived","completed"].indexOf(t.status) >= 0;
+    if (f === "rejected") return t.status === "rejected";
+    return t.status === f;
   }
 
   var currentFilter = "all";
@@ -221,7 +226,7 @@
       tl.classList.remove("hidden");
       tl.innerHTML = "";
 
-      var filtered = currentFilter === "all" ? tokens : tokens.filter(function (t) { return t.status === currentFilter; });
+      var filtered = currentFilter === "all" ? tokens : tokens.filter(function (t) { return filterMatch(t, currentFilter); });
 
       if (filtered.length === 0) {
         tl.innerHTML = '<div class="error-wrap"><div class="err-icon">📭</div><p>暂无符合条件的令牌</p></div>';
@@ -232,17 +237,21 @@
         var t = filtered[i];
         var item = document.createElement("div");
         item.className = "timeline-item fade-in";
+        var who = (t.issued_by || t.initiator || "") + ' <span class="arrow">→</span> ' + (t.issued_to || t.executor || "");
+        var meta = '<span>📜 签发 ' + formatTime(t.issued_at || t.created) + '</span>' +
+                   '<span>🤝 接令 ' + formatTime(t.accepted_at) + '</span>' +
+                   '<span>📦 交付 ' + formatTime(t.delivered_at) + '</span>' +
+                   '<span>✅ 验证 ' + formatTime(t.verified_at) + '</span>';
         item.innerHTML =
-          '<div class="timeline-dot ' + t.status + '"></div>' +
+          '<div class="timeline-dot ' + esc(t.status) + '"></div>' +
           '<div class="tl-header">' +
-            '<span class="tl-id">' + t.id + '</span>' +
+            '<span class="tl-id">' + esc(t.id) + '</span>' +
             '<span class="badge ' + statusBadgeClass(t.status) + '">' + statusLabel(t.status) + '</span>' +
+            (t.priority ? '<span class="tl-prio">' + esc(t.priority) + '</span>' : '') +
           '</div>' +
-          '<div class="tl-summary">' + (t.summary || "") + '</div>' +
-          '<div class="tl-flow">' + t.initiator + ' <span class="arrow">→</span> ' + t.executor + '</div>' +
-          '<div class="tl-meta">' +
-            '<span>🕐 ' + formatTime(t.created) + '</span>' +
-          '</div>';
+          '<div class="tl-summary">' + esc(t.title || t.summary || "") + '</div>' +
+          '<div class="tl-flow">' + who + '</div>' +
+          '<div class="tl-meta">' + meta + '</div>';
         tl.appendChild(item);
       }
 

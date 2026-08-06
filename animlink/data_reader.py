@@ -158,6 +158,15 @@ def _refresh_cache():
                             "executor": executor,
                             "status": status,
                             "summary": str(summary)[:80],
+                            # TOKEN-LIFECYCLE: 保留完整时间戳 + 新 Schema 字段
+                            "issued_at": obj.get("issued_at"),
+                            "accepted_at": obj.get("accepted_at"),
+                            "delivered_at": obj.get("delivered_at"),
+                            "verified_at": obj.get("verified_at"),
+                            "priority": obj.get("priority", "P2"),
+                            "title": obj.get("title", ""),
+                            "issued_by": obj.get("issued_by", "nyx-windows"),
+                            "issued_to": obj.get("issued_to", "unknown"),
                         })
                 except Exception:
                     pass
@@ -200,6 +209,11 @@ def _refresh_cache():
                     tokens.append({
                         "id": tk_id, "initiator": "nyx-windows", "executor": executor,
                         "status": status, "summary": str(summary)[:80],
+                        # TOKEN-LIFECYCLE: legacy 归档无时间戳，置空；保留字段兼容
+                        "issued_at": None, "accepted_at": None,
+                        "delivered_at": None, "verified_at": None,
+                        "priority": "P2", "title": "",
+                        "issued_by": "nyx-windows", "issued_to": executor,
                     })
             except: pass
         
