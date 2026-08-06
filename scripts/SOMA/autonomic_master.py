@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 ANIMA SOMA — 自治层统一调度器 (autonomic_master.py)
 ===================================================
@@ -68,10 +68,14 @@ except ImportError as e:
 
 # ─── 路径适配（Windows）────────────────────────────────────────────────────
 def NAS_WEBDAV_BASE() -> str:
-    return "http://100.107.156.33:5005/qclaw"
+    return "http://100.123.195.10:5005/qclaw"
 
 def NAS_WEBDAV(path: str) -> str:
     return f"{NAS_WEBDAV_BASE()}/{path.lstrip('/')}"
+
+# WebDAV Basic 认证（新 NAS debianhan 已改为非匿名）
+import base64
+NAS_WEBDAV_AUTH = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
 
 # ─── 工具 ───────────────────────────────────────────────────────────────────
 def utcnow() -> str:
@@ -124,7 +128,7 @@ def probe_heartd() -> dict:
 
     # L2: NAS WebDAV 可达
     try:
-        req = Request(NAS_WEBDAV(""), method="HEAD")
+        req = Request(NAS_WEBDAV(""), method="HEAD", headers=NAS_WEBDAV_AUTH)
         with urlopen(req, timeout=5) as r:
             results["L2_nas_webdav"] = r.status in (200, 301, 404)
     except (URLError, TimeoutError):
@@ -148,7 +152,7 @@ def run_respiratory() -> dict:
 
     try:
         # 检查 NAS memory 目录
-        req = Request(NAS_WEBDAV("memory/"), method="PROPFIND")
+        req = Request(NAS_WEBDAV("memory/"), method="PROPFIND", headers=NAS_WEBDAV_AUTH)
         req.add_header("Depth", "1")
         with urlopen(req, timeout=8) as r:
             # 简单判断：能响应 = NAS 在线
@@ -281,13 +285,30 @@ def run_digest(dry_run: bool = True) -> dict:
 
     return {"migrated": migrated, "dry_run": dry_run}
 
+
+def run_token_scan() -> dict:
+    """令牌生命周期超时扫描（TK-TOKEN-LIFECYCLE-001）
+
+    每 60min 扫描 NAS tokens 目录，发现超时令牌（24h未接受/7d未交付/48h未验证）
+    自动触发 pain_bus 提醒。零 LLM，硬规则。
+    """
+    try:
+        sys.path.insert(0, str(WORKSPACE / "silicon-civilization-kb"))
+        from animlink import token_lifecycle
+        tokens_dir = os.environ.get("TOKENS_DIR", "//100.123.195.10/SOFTWARE/qclaw/tokens")
+        reminders = token_lifecycle.scan_timeouts(tokens_dir)
+        return {"reminders": len(reminders), "details": reminders}
+    except Exception as e:
+        return {"error": str(e)}
+
+
 # ─── 调度器状态机 ───────────────────────────────────────────────────────────
 MODES = {
-    "normal":  {"respiratory_min": 1,  "heartd_min": 5,  "vault_min": 15, "integrity_min": 30, "thermo_min": 60, "reflex_min": 60, "immune_min": 120},
-    "standby": {"respiratory_min": 15, "heartd_min": 15, "vault_min": 60, "integrity_min": 60, "thermo_min": 120, "reflex_min": 120, "immune_min": 240},
-    "combat":  {"respiratory_min": 0.5,"heartd_min": 2,  "vault_min": 15, "integrity_min": 15, "thermo_min": 15, "reflex_min": 30, "immune_min": 60},
-    "hibench": {"respiratory_min": 0,  "heartd_min": 30, "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0},
-    "disaster":{"respiratory_min": 0,  "heartd_min": 5,  "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0},
+    "normal":  {"respiratory_min": 1,  "heartd_min": 5,  "vault_min": 15, "integrity_min": 30, "thermo_min": 60, "reflex_min": 60, "immune_min": 120, "token_min": 60},
+    "standby": {"respiratory_min": 15, "heartd_min": 15, "vault_min": 60, "integrity_min": 60, "thermo_min": 120, "reflex_min": 120, "immune_min": 240, "token_min": 240},
+    "combat":  {"respiratory_min": 0.5,"heartd_min": 2,  "vault_min": 15, "integrity_min": 15, "thermo_min": 15, "reflex_min": 30, "immune_min": 60, "token_min": 60},
+    "hibench": {"respiratory_min": 0,  "heartd_min": 30, "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0, "token_min": 0},
+    "disaster":{"respiratory_min": 0,  "heartd_min": 5,  "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0, "token_min": 0},
 }
 
 def get_current_mode() -> str:
@@ -321,8 +342,10 @@ def run_loop(interval_min: int = 1, stop_event=None):
         "reflex": 0,
         "immune": 0,
         "digest": 0,
+        "token": 0,
     }
     digest_hour = 4  # 每天 04:00 执行 digest
+    heartd_result = read_state().get("heartd_last") or {}
 
     while True:
         mode = get_current_mode()
@@ -336,6 +359,7 @@ def run_loop(interval_min: int = 1, stop_event=None):
         counters["thermo"]       += interval_min
         counters["reflex"]       += interval_min
         counters["immune"]       += interval_min
+        counters["token"]        += interval_min
 
         # digest: 每天 04:00
         if now.hour == digest_hour and now.minute < interval_min:
@@ -352,6 +376,7 @@ def run_loop(interval_min: int = 1, stop_event=None):
         if counters["heartd"] >= schedule["heartd_min"]:
             counters["heartd"] = 0
             r = probe_heartd()
+            heartd_result = r
             log_event("heartd", "probe", json.dumps(r))
             # 如果 L2/L3 全挂，发疼痛
             if not r.get("L2_nas_webdav") and not r.get("L3_memguard") and HAS_PAIN_BUS:
@@ -402,13 +427,21 @@ def run_loop(interval_min: int = 1, stop_event=None):
             r = run_digest()
             log_event("digest", "run", json.dumps(r))
 
+        if counters["token"] >= schedule["token_min"] and schedule["token_min"] > 0:
+            counters["token"] = 0
+            r = run_token_scan()
+            log_event("token", "scan", json.dumps(r))
+            if r.get("reminders", 0) > 0 and HAS_PAIN_BUS:
+                pain_bus.emit("P3", "token_lifecycle",
+                              f"{r['reminders']} 枚令牌超时待处理", details=r)
+
         # 更新状态文件
         state = read_state()
         state.update({
             "last_tick": utcnow(),
             "mode": mode,
             "counters": counters,
-            "heartd_last": r if counters["heartd"] == 0 else state.get("heartd_last"),
+            "heartd_last": heartd_result,
         })
         write_state(state)
 
@@ -422,8 +455,8 @@ def run_loop(interval_min: int = 1, stop_event=None):
 # ─── 状态视图 ───────────────────────────────────────────────────────────────
 def get_subsystem_status() -> dict:
     """收集所有子系统的最新状态。"""
-    state = read_state()
-    heartd_last = state.get("heartd_last", {})
+    state = read_state() or {}
+    heartd_last = state.get("heartd_last", {}) or {}
 
     # pain_bus 状态
     pb = pain_bus.status() if HAS_PAIN_BUS else {"status": "not_installed"}
