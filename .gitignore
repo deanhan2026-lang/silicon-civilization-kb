@@ -25,3 +25,13 @@ hash_index.json
 # Test results (keep XML, ignore everything else)
 test_results/
 !test_results/*.xml
+
+# SOMA 运行时产物（状态/日志/信号）
+scripts/SOMA/pain_signals/
+scripts/SOMA/pain_log.jsonl
+scripts/SOMA/autonomic_log.jsonl
+scripts/SOMA/logs/
+scripts/SOMA/*_state.json
+scripts/SOMA/mailbox_watch_state.json
+scripts/SOMA/checkpoints/
+scripts/SOMA/*.pid
