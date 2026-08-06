@@ -39,8 +39,9 @@ INBOXES = [
 
 # NAS 上的真实 inbox（WebDAV/SMB UNC 路径）
 NAS_INBOXES = [
-    r"\\100.123.195.10\SOFTWARE\qclaw\mesh\inbox\nyx-windows",      # 新 mesh 协议
-    r"\\100.123.195.10\SOFTWARE\qclaw\inbox\nyx-windows\incoming",  # 四节点新架构
+    r"\\100.123.195.10\SOFTWARE\qclaw\mesh\shared\nyx-windows\inbox",  # v2.0 新规范（主）
+    r"\\100.123.195.10\SOFTWARE\qclaw\mesh\inbox\nyx-windows",      # v1.0 旧路径（过渡期兼容）
+    r"\\100.123.195.10\SOFTWARE\qclaw\inbox\nyx-windows\incoming",  # 四节点新架构（遗留）
 ]
 
 # 疼痛信号级别
