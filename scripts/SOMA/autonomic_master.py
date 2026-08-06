@@ -151,11 +151,11 @@ def run_respiratory() -> dict:
     from urllib.error import URLError
 
     try:
-        # 检查 NAS memory 目录
-        req = Request(NAS_WEBDAV("memory/"), method="PROPFIND", headers=NAS_WEBDAV_AUTH)
-        req.add_header("Depth", "1")
+        # Depth=0 探测根路径（Depth=1 会被 Apache 拒 403/400；memory/ 带斜杠 400）
+        req = Request(NAS_WEBDAV_BASE() + "/", method="PROPFIND", headers=NAS_WEBDAV_AUTH)
+        req.add_header("Depth", "0")
         with urlopen(req, timeout=8) as r:
-            # 简单判断：能响应 = NAS 在线
+            # 能响应 = NAS 在线
             return {"status": "ok", "nas_reachable": True}
     except Exception:
         pass
