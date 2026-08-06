@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 Nyx NAS MCP Server
 提供 NAS 文件系统访问的 MCP 服务器
@@ -73,7 +73,7 @@ def mount_nas() -> bool:
     nas_mount.mkdir(parents=True, exist_ok=True)
     
     try:
-        cmd = f'mount_smbfs "//anima:animastellar@100.107.156.33/SOFTWARE" {nas_mount}'
+        cmd = f'mount_smbfs "//anima:animastellar@100.123.195.10/SOFTWARE" {nas_mount}'
         result = subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
         return result.returncode == 0
     except Exception as e:

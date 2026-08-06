@@ -8,14 +8,47 @@ import os
 import time
 import threading
 from datetime import datetime
+import urllib.request
+import urllib.error
+import base64
+import re as _re
+
+# WebDAV access to NAS (replaces Z: drive dependency)
+NAS_WEBDAV_BASE = "http://100.123.195.10:5005/qclaw"
+NAS_WEBDAV_AUTH = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
+
+def _webdav_get(rel_path, timeout=10):
+    """GET file from NAS WebDAV, return bytes or None."""
+    url = NAS_WEBDAV_BASE + '/' + rel_path.lstrip('/')
+    try:
+        req = urllib.request.Request(url, headers=NAS_WEBDAV_AUTH)
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            return r.read()
+    except Exception:
+        return None
+
+def _webdav_list(rel_path, timeout=10):
+    """PROPFIND list dir from NAS WebDAV, return list of names or None."""
+    url = NAS_WEBDAV_BASE + '/' + rel_path.lstrip('/') + '/'
+    try:
+        req = urllib.request.Request(url, method='PROPFIND', headers=NAS_WEBDAV_AUTH)
+        req.add_header('Depth', '1')
+        with urllib.request.urlopen(req, timeout=timeout) as r:
+            body = r.read().decode('utf-8', errors='ignore')
+        hrefs = _re.findall(r'<[^>]+:href>([^<]+)</[^>]+:href>', body)
+        names = []
+        for h in hrefs:
+            n = h.rstrip('/').split('/')[-1]
+            if n and n not in ('.', '..'):
+                names.append(n)
+        return names
+    except Exception:
+        return None
 
 # NAS-aware storage: try Z: (NAS), fallback to E:\SOFTWARE\qclaw
 def _resolve_root():
-    if os.path.exists(r"Z:\qclaw"):
-        return r"Z:\qclaw"
-    if os.path.exists(r"E:\SOFTWARE\qclaw"):
-        return r"E:\SOFTWARE\qclaw"
-    return r"Z:\qclaw"  # keep trying
+    """NAS root - legacy local path, primary access is now WebDAV."""
+    return "Z:\\qclaw"  # legacy; WebDAV (_webdav_get) is the primary access path
 
 NAS_ROOT = _resolve_root()
 
@@ -37,21 +70,18 @@ FALLBACK_TOKENS = [
 ]
 
 def _nas_read_json(rel_path):
-    """Read JSON from NAS with timeout guard."""
-    fp = os.path.join(NAS_ROOT, rel_path)
+    """Read JSON from NAS via WebDAV with timeout guard."""
+    data = _webdav_get(rel_path)
+    if data is None:
+        return None
     try:
-        data = open(fp, 'rb').read()
         return json.loads(data.decode('utf-8-sig'))
     except Exception:
         return None
 
 def _nas_list_dir(rel_path):
-    """List directory with minimum overhead."""
-    fp = os.path.join(NAS_ROOT, rel_path)
-    try:
-        return os.listdir(fp)
-    except Exception:
-        return None
+    """List directory via WebDAV PROPFIND."""
+    return _webdav_list(rel_path)
 
 def _refresh_cache():
     """Refresh the in-memory cache from NAS."""
@@ -87,9 +117,54 @@ def _refresh_cache():
                 "tokens": ts_data.get("total_tokens", 0), "completed": ts_data.get("completed", 0),
             })
         
-        # Parse tokens
+        # Parse tokens from tokens/ (primary) AND inbox/archive/ (legacy)
         tokens = []
         seen = set()
+
+        # Source 1: tokens/ directory (via WebDAV - SMB may have permission issues)
+        tokens_dir_http = "http://100.123.195.10:5005/qclaw/tokens"
+        try:
+            from urllib.request import Request, urlopen
+            import re as _re
+            import base64
+            NAS_WEBDAV_AUTH = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
+            req = Request(tokens_dir_http + "/", method="PROPFIND", headers=NAS_WEBDAV_AUTH)
+            req.add_header("Depth", "1")
+            r = urlopen(req, timeout=8)
+            body = r.read().decode("utf-8", errors="ignore")
+            hrefs = _re.findall(r'<[^>]+:href>([^<]+)</[^>]+:href>', body)
+            for href in sorted(hrefs):
+                fname = href.rstrip("/").split("/")[-1]
+                if not fname.endswith(".json"):
+                    continue
+                if not (fname.startswith("tk_") or fname.startswith("accept_") or fname.startswith("delivery_")):
+                    continue
+                try:
+                    file_req = Request(tokens_dir_http + "/" + fname, headers=NAS_WEBDAV_AUTH)
+                    r2 = urlopen(file_req, timeout=5)
+                    raw = r2.read()
+                    obj = json.loads(raw)
+                    tk_id = obj.get("id", fname.replace(".json", ""))
+                    summary = obj.get("title", obj.get("summary", ""))
+                    status = obj.get("status", "issued")
+                    executor = obj.get("issued_to", "unknown").lower()
+                    if executor == "nyx":
+                        executor = "nyx-windows"
+                    if tk_id not in seen:
+                        seen.add(tk_id)
+                        tokens.append({
+                            "id": tk_id,
+                            "initiator": obj.get("issued_by", "nyx-windows").lower(),
+                            "executor": executor,
+                            "status": status,
+                            "summary": str(summary)[:80],
+                        })
+                except Exception:
+                    pass
+        except Exception:
+            pass
+
+        # Source 2: inbox/archive/ (legacy fallback)
         archive_path = os.path.join(NAS_ROOT, "inbox", "archive")
         archive_names = _nas_list_dir("inbox/archive") or []
         for name in sorted(archive_names):
@@ -99,7 +174,9 @@ def _refresh_cache():
                 continue
             fp = os.path.join(archive_path, name)
             try:
-                raw = open(fp, 'rb').read()
+                raw = _webdav_get("inbox/archive/" + name)
+                if raw is None:
+                    continue
                 text = raw.decode('utf-8', errors='replace')
                 name_lower = name.lower()
                 if "iris" in name_lower: executor = "iris"

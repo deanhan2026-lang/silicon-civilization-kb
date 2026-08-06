@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 记忆完整性校验与同步脚本
 Memory Integrity Check & Sync Script
@@ -134,7 +134,7 @@ def mount_nas() -> bool:
     # 尝试挂载 SMB
     import subprocess
     try:
-        cmd = f'mount_smbfs "//anima:animastellar@100.107.156.33/SOFTWARE" {NAS_PATH}'
+        cmd = f'mount_smbfs "//anima:animastellar@100.123.195.10/SOFTWARE" {NAS_PATH}'
         result = subprocess.run(cmd, shell=True, capture_output=True, timeout=10)
         return result.returncode == 0
     except Exception as e:

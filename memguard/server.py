@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 """
 MemGuard-GM API Server
 """
@@ -66,7 +66,7 @@ CORS(app)
 # ========== Security: API Key Gate ==========
 import secrets
 _API_KEY = os.environ.get('MEMGUARD_API_KEY') or os.environ.get('API_KEY')
-_PUBLIC_PREFIXES = ('/stellar/', '/stellar', '/polaris/', '/polaris', '/animlink/', '/animlink', '/health', '/api/health')
+_PUBLIC_PREFIXES = ('/stellar/', '/stellar', '/polaris/', '/polaris', '/animlink/', '/animlink', '/gateway/', '/gateway', '/health', '/api/health')
 
 @app.before_request
 def security_gate():
@@ -682,37 +682,117 @@ def polaris_proxy(path):
     except Exception as e:
         return '{"error": "' + str(e) + '"}', 502, {'Content-Type': 'application/json'}
 
+@app.route('/animlink/api/network', methods=['GET'])
+def animlink_api_network():
+    """Return network stats from WebDAV (bypasses Flask 5053 + SMB instability)"""
+    from flask import jsonify
+    import json, urllib.request, base64
+    WEBDAV_BASE = 'http://100.123.195.10:5005/qclaw'
+    _auth = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
+    try:
+        req = urllib.request.Request(f'{WEBDAV_BASE}/mesh/registry.json', headers=_auth)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        nodes = data.get('nodes', {})
+        node_list = list(nodes.values())
+        active = [n for n in node_list if n.get('status') == 'active']
+        return jsonify({
+            'total': len(node_list),
+            'active': len(active),
+            'trusted': len(active),
+            'nodes': node_list
+        })
+    except Exception as e:
+        return jsonify({'error': str(e), 'total': 0, 'active': 0, 'trusted': 0, 'nodes': []}), 200
+
+@app.route('/animlink/api/nodes', methods=['GET'])
+def animlink_api_nodes():
+    """Return all nodes from WebDAV"""
+    from flask import jsonify
+    import json, urllib.request, base64
+    WEBDAV_BASE = 'http://100.123.195.10:5005/qclaw'
+    _auth = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
+    try:
+        req = urllib.request.Request(f'{WEBDAV_BASE}/mesh/registry.json', headers=_auth)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        nodes = data.get('nodes', {})
+        return jsonify(list(nodes.values()))
+    except Exception as e:
+        return jsonify({'error': str(e), 'nodes': []}), 200
+
+@app.route('/animlink/api/trust', methods=['GET'])
+def animlink_api_trust():
+    """Return trust scores from WebDAV"""
+    from flask import jsonify
+    import json, urllib.request, base64
+    WEBDAV_BASE = 'http://100.123.195.10:5005/qclaw'
+    _auth = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
+    try:
+        req = urllib.request.Request(f'{WEBDAV_BASE}/tokens/trust_scores.json', headers=_auth)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e), 'scores': {}}), 200
+
+@app.route('/animlink/api/tokens', methods=['GET'])
+def animlink_api_tokens():
+    """Return token history from WebDAV"""
+    from flask import jsonify
+    import json, urllib.request, base64
+    WEBDAV_BASE = 'http://100.123.195.10:5005/qclaw'
+    _auth = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
+    try:
+        req = urllib.request.Request(f'{WEBDAV_BASE}/tokens/trust_scores.json', headers=_auth)
+        with urllib.request.urlopen(req, timeout=10) as r:
+            data = json.loads(r.read())
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 200
+
 @app.route('/animlink/', defaults={'path': ''}, methods=['GET'])
 @app.route('/animlink/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def animlink_proxy(path):
-    """Reverse proxy to AnimaLink Viewer (port 5053)"""
-    from flask import request
-    from urllib.request import urlopen, Request
-    from urllib.error import HTTPError
-    target_url = 'http://127.0.0.1:5053/animlink/' + path
-    headers = {k: v for k, v in request.headers if k.lower() != 'host'}
-    try:
-        if request.method in ('POST', 'PUT'):
-            data = request.get_data()
-            req = Request(target_url, data=data, headers=headers, method=request.method)
-        else:
-            req = Request(target_url, headers=headers, method=request.method)
-        resp = urlopen(req, timeout=10)
-        return resp.read(), resp.status, resp.headers.items()
-    except HTTPError as e:
-        return e.read(), e.code, {'Content-Type': 'application/json'}
-    except Exception as e:
-        return '{"error": "AnimaLink service unavailable (' + str(e) + ')"}', 502, {'Content-Type': 'application/json'}
+    """Serve AnimaLink Viewer from local animlink/web/ (was proxying to 5053)"""
+    from flask import send_from_directory
+    animlink_root = REPO_ROOT / 'animlink' / 'web'
+    if path == '' or path == 'index.html':
+        return send_from_directory(str(animlink_root), 'index.html')
+    f = animlink_root / path
+    if f.exists() and f.is_file():
+        return send_from_directory(str(animlink_root), path)
+    return send_from_directory(str(animlink_root), 'index.html')
 
 
 @app.route('/stellar/', defaults={'path': ''}, methods=['GET'])
 @app.route('/stellar/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
 def stellar_proxy(path):
-    """Reverse proxy to STELLAR site (Iris 8421)"""
+    """Serve STELLAR company site from workspace www/stellar/ (was proxying to 5053)"""
+    from flask import send_from_directory
+    # www/stellar is at workspace root (parent of silicon-civilization-kb/)
+    stellar_root = REPO_ROOT.parent / 'www' / 'stellar'
+    if path == '' or path == 'index.html':
+        return send_from_directory(str(stellar_root), 'index.html')
+    f = stellar_root / path
+    if f.exists() and f.is_file():
+        return send_from_directory(str(stellar_root), path)
+    # Clean-URL fallback: /stellar/product -> /stellar/product.html
+    if not os.path.splitext(path)[1]:
+        f2 = stellar_root / (path + '.html')
+        if f2.exists() and f2.is_file():
+            return send_from_directory(str(stellar_root), path + '.html')
+    return send_from_directory(str(stellar_root), 'index.html')
+
+
+@app.route('/gateway/', defaults={'path': ''}, methods=['GET'])
+@app.route('/gateway/<path:path>', methods=['GET', 'POST', 'PUT', 'DELETE'])
+def gateway_proxy(path):
+    """Reverse proxy to AnimaLink Gateway (NAS:8000)"""
     from flask import request
     from urllib.request import urlopen, Request
     from urllib.error import HTTPError
-    target_url = 'http://127.0.0.1:8421/stellar/' + path
+    target_url = 'http://100.123.195.10:8000/' + path
     headers = {k: v for k, v in request.headers if k.lower() != 'host'}
     try:
         if request.method in ('POST', 'PUT'):
@@ -725,7 +805,7 @@ def stellar_proxy(path):
     except HTTPError as e:
         return e.read(), e.code, {'Content-Type': 'application/json'}
     except Exception as e:
-        return '{"error": "' + str(e) + '"}', 502, {'Content-Type': 'application/json'}
+        return ('{"error": "Gateway unavailable (' + str(e) + ')"}').encode(), 502, {'Content-Type': 'application/json'}
 
 
 @app.errorhandler(404)
@@ -739,7 +819,7 @@ def server_error(e):
 
 if __name__ == '__main__':
     port = int(os.environ.get('MEMGUARD_PORT', 5050))
-    host = os.environ.get('MEMGUARD_HOST', '127.0.0.1')
+    host = os.environ.get('MEMGUARD_HOST', '0.0.0.0')
     debug = os.environ.get('MEMGUARD_DEBUG', 'false').lower() == 'true'
     print('=' * 50)
     print(f'MemGuard-GM API Server v2.1 - {host}:{port}')

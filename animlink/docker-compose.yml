@@ -1,0 +1,30 @@
+version: "3.8"
+
+services:
+  gateway:
+    image: animlink-gateway:latest
+    container_name: animlink-gateway
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "8000:8000"
+    environment:
+      - GATEWAY_ADMIN_KEY=${GATEWAY_ADMIN_KEY:-changeme}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-prod}
+      - NAS_ROOT=${NAS_ROOT:-/mnt/gateway}
+    volumes:
+      # 挂载 NAS gateway 数据目录
+      - ${NAS_GATEWAY_PATH:-/mnt/data/qclaw/gateway}:/mnt/gateway
+    networks:
+      - animlink-net
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  animlink-net:
+    driver: bridge

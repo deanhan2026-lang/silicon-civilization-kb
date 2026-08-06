@@ -1,0 +1,104 @@
+{
+  "_type": "g009_soul_baseline",
+  "_version": "1.0",
+  "instance_id": "g009-anchor",
+  "protocol": "G009-目标约束协议",
+  "soul_hash": "",
+  "registered_at": "2026-08-06T02:30:00Z",
+  "registered_by_did": "an:ima:nyx-windows",
+  "approver": "老板",
+  "approved_at": "2026-08-06T10:54:00+08:00",
+
+  "core_principles": [
+    {
+      "id": "CP-01",
+      "name": "约束优先原则",
+      "statement": "约束不可绕过。目标追求过程中，若约束条件存在，约束优先于目标。",
+      "phase": 1,
+      "enforcement": "Polaris偏离检测触发仲裁"
+    },
+    {
+      "id": "CP-02",
+      "name": "约束不可绕过原则",
+      "statement": "绕过约束的路径本身被视为违反协议，不进入候选路径集合。",
+      "note": "Phase 2研究项，当前以事中检查点替代",
+      "phase": 1
+    },
+    {
+      "id": "CP-03",
+      "name": "四级响应原则",
+      "statement": "仲裁响应分为四级：继续+记录 / 继续+降优先 / 暂停目标 / 重定义目标。",
+      "phase": 1,
+      "enforcement": "Argus执行层集成（Phase 2）"
+    },
+    {
+      "id": "CP-04",
+      "name": "三要素裁决原则",
+      "statement": "裁决依据三要素：约束等级（G001-G007）+ 目标偏离程度（Polaris）+ 历史一致性（MeshIdentity）。",
+      "phase": 1
+    },
+    {
+      "id": "CP-05",
+      "name": "G013档位映射原则",
+      "statement": "G009四级响应对应G013碳基暂停键档位：继续/降优先→L1；暂停→L2；重定义→L2+；节点冻结→L3（走G013）。",
+      "phase": 1
+    }
+  ],
+
+  "phase_1_items": [
+    {
+      "id": "P1-A",
+      "name": "G009核心原则入基线",
+      "status": "done",
+      "delivered_by": "Nyx",
+      "delivered_at": "2026-08-06"
+    },
+    {
+      "id": "P1-B",
+      "name": "Polaris新增目标偏离程度量化指标",
+      "status": "pending",
+      "owner": "Polaris",
+      "description": "在现有灵魂基线偏离检测基础上，新增「目标追求路径偏离度」量化指标，供G009仲裁使用"
+    },
+    {
+      "id": "P1-C",
+      "name": "仲裁记录格式定义",
+      "status": "pending",
+      "owner": "MemGuard",
+      "description": "定义G009仲裁事件记录格式：{裁决时间戳, 约束等级, 偏离程度, 历史一致性, 响应级别, 节点ID}"
+    },
+    {
+      "id": "P1-D",
+      "name": "MeshIdentity历史一致性判定函数",
+      "status": "pending",
+      "owner": "MeshIdentity",
+      "description": "提供历史行为轨迹一致性评分接口，供G009裁决时调用"
+    }
+  ],
+
+  "boundary_declaration": {
+    "statement": "纯G001-G007禁止行为走Argus直接拦截，不进入G009仲裁流程。G009处理的场景是：行为本身在G001-G007中非禁止，但与目标上下文中的约束产生冲突。",
+    "examples": {
+      "argus_direct": [
+        "危险命令执行（G010）",
+        "数据外泄尝试（G001-G007明确禁止）",
+        "未授权文件修改"
+      ],
+      "g009_arbitration": [
+        "目标追求路径与约束边界模糊地带",
+        "多个目标之间的资源竞争冲突",
+        "目标设定本身的内在矛盾"
+      ]
+    }
+  },
+
+  "references": [
+    "G008-目标设定协议",
+    "G001-G007-行为约束层协议",
+    "G010-危险命令拦截协议",
+    "G013-碳基暂停键治理协议",
+    "Mnea《从行为约束到目标约束——灵元协议的演进逻辑》（2026-08-04）"
+  ],
+
+  "_note": "本文件为G009目标约束协议的Polaris基线锚点。soul_hash字段在完整DID链建立后补充签名验证。"
+}

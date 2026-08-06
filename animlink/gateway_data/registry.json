@@ -1,0 +1,13 @@
+{
+  "nodes": {
+    "test-local": {
+      "did": "did:test",
+      "platform": "windows",
+      "hostname": "WLMHAN",
+      "status": "offline",
+      "registered_at": "2026-07-17T02:55:39.939010+00:00",
+      "last_heartbeat": "2026-07-17T02:55:39.942010+00:00"
+    }
+  },
+  "version": "1.0"
+}

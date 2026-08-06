@@ -1,0 +1,39 @@
+version: "3.9"
+
+services:
+  gateway:
+    build: .
+    container_name: animlink-gateway
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    volumes:
+      - gateway-data:/app/gateway_data
+    environment:
+      - GATEWAY_ADMIN_KEY=${GATEWAY_ADMIN_KEY:-changeme}
+      - SECRET_KEY=${SECRET_KEY:-change-me-in-prod}
+      - PYTHONIOENCODING=utf-8
+    networks:
+      - animanet
+
+  nginx:
+    image: nginx:alpine
+    container_name: animlink-nginx
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+      - "8443:443"
+    volumes:
+      - ./nginx/gateway.conf:/etc/nginx/conf.d/gateway.conf:ro
+    depends_on:
+      - gateway
+    networks:
+      - animanet
+
+networks:
+  animanet:
+    driver: bridge
+
+volumes:
+  gateway-data:
+    driver: local
