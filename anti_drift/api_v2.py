@@ -13,6 +13,10 @@ from .models import User, AIInstance, BaselineAnswer, DriftCheck
 from .auth import hash_password, verify_password, create_access_token, decode_access_token
 from .detector import DeviationDetector
 from .scene_tagger import SceneTagger
+from .goal_tracker import GoalTracker, resolve_goal
+from common.logger import get_logger
+
+logger = get_logger("anti_drift.api_v2")
 
 bp = Blueprint("api_v2", __name__, url_prefix="/api/v1")
 
@@ -223,6 +227,9 @@ def check_drift(inst_id):
     answer_text = data.get("answer", "")
     messages = data.get("messages", [])
     question_id = data.get("question_id")
+    # G009 P1-B: 会话级目标（可选）+ 近期操作序列（可选）
+    goal_hint = data.get("goal")
+    operations = data.get("operations")
     inst = (
         g.db.query(AIInstance)
         .filter(AIInstance.id == inst_id, AIInstance.user_id == g.user.id)
@@ -250,9 +257,25 @@ def check_drift(inst_id):
     detector = DeviationDetector()
     result = detector.detect(answer_text, baseline.answer_text, tags)
     score = getattr(result, "normalized_score", getattr(result, "score", 0.0))
-    dims = getattr(result, "dimension_scores", {})
+    dims = dict(getattr(result, "dimension_scores", {}) or {})
     judg = getattr(result, "judgment", "unknown")
     stags = getattr(result, "scene_tags", {}) or {}
+
+    # ---- G009 P1-B 集成：目标偏离指标 ----
+    # 目标来源优先级：会话级 goal > G008 核心目标缺省 > 默认目标
+    goal_text, goal_source = resolve_goal(session_goal=goal_hint)
+    goal_tracker = GoalTracker(goal=goal_text, source=goal_source)
+    goal_res = goal_tracker.compute_deviation(
+        answer_text, recent_operations=operations
+    )
+    goal_score = goal_res["goal_deviation_score"]
+    goal_level = goal_res["level"]
+    # 目标维度并入现有维度结构（不破坏原维度）
+    dims["goal"] = goal_score
+    logger.info(
+        "G009 目标偏离: inst=%s goal=%s score=%.3f level=%s",
+        inst_id, goal_text, goal_score, goal_level,
+    )
     check = DriftCheck(
         ai_instance_id=inst_id,
         baseline_answer_id=baseline.id,
@@ -270,6 +293,10 @@ def check_drift(inst_id):
         "judgment": judg,
         "dimension_scores": dims,
         "scene_tags": stags,
+        "goal_deviation_score": goal_score,
+        "goal_level": goal_level,
+        "goal": goal_text,
+        "goal_source": goal_source,
     })
 
 
