@@ -1,0 +1,16 @@
+{
+  "pain_id": "pain_20260806_161414_219bea",
+  "pain_level": "P3",
+  "pain_label": "轻痛",
+  "source": "token_lifecycle",
+  "timestamp": "2026-08-06T08:14:14+08:00",
+  "summary": "[令牌超时] tk_soma_stellar_001 交付后 48h 未验证",
+  "details": {
+    "token_id": "tk_soma_stellar_001",
+    "status": "submitted"
+  },
+  "suggested_action": "REVIEW_AND_DECIDE",
+  "wake_llm": false,
+  "auto_repair": false,
+  "workspace_size_mb": 12.22
+}

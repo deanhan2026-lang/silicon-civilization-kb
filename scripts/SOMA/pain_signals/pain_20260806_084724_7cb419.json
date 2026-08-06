@@ -1,0 +1,16 @@
+{
+  "pain_id": "pain_20260806_084724_7cb419",
+  "pain_level": "P3",
+  "pain_label": "轻痛",
+  "source": "token_lifecycle",
+  "timestamp": "2026-08-06T07:47:24+08:00",
+  "summary": "[令牌超时] tk_old 签发后 24h 未接受",
+  "details": {
+    "token_id": "tk_old",
+    "status": "issued"
+  },
+  "suggested_action": "REVIEW_AND_DECIDE",
+  "wake_llm": false,
+  "auto_repair": false,
+  "workspace_size_mb": 12.2
+}

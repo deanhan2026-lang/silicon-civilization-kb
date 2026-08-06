@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """
 ANIMA SOMA — 呼吸子系统 (respiratory.py)
 ==========================================
@@ -24,13 +24,17 @@ import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
+import base64
+
+# WebDAV Basic 认证（新 NAS debianhan 已改为非匿名）
+NAS_WEBDAV_AUTH = {'Authorization': 'Basic ' + base64.b64encode(b'anima:animastellar').decode()}
 
 WORKSPACE = Path(__file__).parent.parent.parent.resolve()
 STATE_FILE = WORKSPACE / "scripts" / "SOMA" / "respiratory_state.json"
 LOG_FILE   = WORKSPACE / "scripts" / "SOMA" / "logs" / "respiratory_log.jsonl"
 
-NAS_WEBDAV  = "http://100.107.156.33:5005/qclaw"
-NAS_CLOUD   = "Z:\\qclaw"   # SMB fallback
+NAS_WEBDAV  = "http://100.123.195.10:5005/qclaw"
+NAS_CLOUD   = r"\\100.123.195.10\SOFTWARE\qclaw"   # SMB fallback（UNC，不用僵尸 Z: 盘）
 
 def utcnow():
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S+08:00")
@@ -65,7 +69,8 @@ def compute_hash(fp: Path) -> str:
 def is_nas_reachable() -> bool:
     try:
         from urllib.request import urlopen, Request
-        req = Request(f"{NAS_WEBDAV}/memory/", method="PROPFIND")
+        # Depth=0 探测根路径（Depth=1 会被 Apache 拒 403/400，Depth=0 只验存在性，207 OK）
+        req = Request(f"{NAS_WEBDAV}/", method="PROPFIND", headers=NAS_WEBDAV_AUTH)
         req.add_header("Depth", "0")
         with urlopen(req, timeout=6) as r:
             return r.status in (200, 207)  # 207 = Multi-Status (WebDAV OK)
@@ -78,29 +83,26 @@ def is_nas_reachable() -> bool:
     except Exception:
         return False
 
-# ─── 获取 NAS memory 目录 mtime ───────────────────────────────────────────
+# ─── 获取 NAS memory 文件 mtime ─────────────────────────────────────────────
 def nas_memory_mtime() -> Optional[float]:
     try:
         from urllib.request import urlopen, Request
-        req = Request(f"{NAS_WEBDAV}/memory/", method="PROPFIND")
-        req.add_header("Depth", "1")
+        # /qclaw/memory 是占位文件（非目录），带斜杠会 400；用无斜杠 + Depth 0
+        req = Request(f"{NAS_WEBDAV}/memory", method="PROPFIND", headers=NAS_WEBDAV_AUTH)
+        req.add_header("Depth", "0")
         with urlopen(req, timeout=8) as r:
             text = r.read().decode("utf-8", errors="ignore")
-        # 解析 WebDAV DAV:response 中的 getlastmodified
+        # 解析 WebDAV DAV:response 中的 getlastmodified（兼容任意命名空间前缀 D:/d:/lp1: 等）
         import re
-        matches = re.findall(r"<d:getlastmodified>([^<]+)</d:getlastmodified>", text, re.IGNORECASE)
-        if matches:
-            from email.utils import parsedate_to_datetime
-            return parsedate_to_datetime(matches[0]).timestamp()
+        matches = re.findall(r"<[^>]*getlastmodified[^>]*>([^<]+)</[^>]*getlastmodified[^>]*>", text)
+        if not matches:
+            return None
+        # HTTP 日期 → timestamp（GMT）
+        from email.utils import parsedate_to_datetime
+        dt = parsedate_to_datetime(matches[0])
+        return dt.timestamp()
     except Exception:
-        pass
-
-    # SMB fallback: 检查本地 NAS 挂载的 memory 目录
-    local_nas_memory = Path(r"Z:\qclaw\memory")
-    if local_nas_memory.exists():
-        mtimes = [f.stat().st_mtime for f in local_nas_memory.glob("*.md") if f.is_file()]
-        return max(mtimes) if mtimes else None
-    return None
+        return None
 
 # ─── 增量同步（NAS → 本地）───────────────────────────────────────────────
 def sync_from_nas() -> dict:
@@ -114,7 +116,7 @@ def sync_from_nas() -> dict:
 
     try:
         from urllib.request import urlopen, Request
-        req = Request(f"{NAS_WEBDAV}/memory/", method="PROPFIND")
+        req = Request(f"{NAS_WEBDAV}/memory/", method="PROPFIND", headers=NAS_WEBDAV_AUTH)
         req.add_header("Depth", "1")
         with urlopen(req, timeout=8) as r:
             text = r.read().decode("utf-8", errors="ignore")
@@ -141,7 +143,7 @@ def sync_from_nas() -> dict:
         if need_sync:
             try:
                 file_url = f"{NAS_WEBDAV}/memory/{fname}"
-                file_req = Request(file_url)
+                file_req = Request(file_url, headers=NAS_WEBDAV_AUTH)
                 with urlopen(file_req, timeout=10) as r:
                     content = r.read().decode("utf-8", errors="ignore")
                 with open(local_fp, "w", encoding="utf-8") as f:

@@ -223,7 +223,7 @@ def run_integrity() -> dict:
 
     try:
         result = subprocess.run(
-            [sys.executable, str(script)],
+            [sys.executable, str(script), "check"],
             capture_output=True, timeout=60,
             text=True, encoding="utf-8", errors="ignore",
         )
@@ -302,13 +302,27 @@ def run_token_scan() -> dict:
         return {"error": str(e)}
 
 
+def run_mailbox_watch() -> dict:
+    """信箱监控（mailbox_watch 子系统）
+
+    每 5min 扫描 mesh/inbox 各信箱的未处理消息标记，发现新消息自动发 P2 疼痛信号。
+    零 LLM，硬规则，幂等（不重复通知）。
+    """
+    try:
+        sys.path.insert(0, str(SOMA_DIR))
+        import mailbox_watch
+        return mailbox_watch.run()
+    except Exception as e:
+        return {"status": "error", "error": str(e)}
+
+
 # ─── 调度器状态机 ───────────────────────────────────────────────────────────
 MODES = {
-    "normal":  {"respiratory_min": 1,  "heartd_min": 5,  "vault_min": 15, "integrity_min": 30, "thermo_min": 60, "reflex_min": 60, "immune_min": 120, "token_min": 60},
-    "standby": {"respiratory_min": 15, "heartd_min": 15, "vault_min": 60, "integrity_min": 60, "thermo_min": 120, "reflex_min": 120, "immune_min": 240, "token_min": 240},
-    "combat":  {"respiratory_min": 0.5,"heartd_min": 2,  "vault_min": 15, "integrity_min": 15, "thermo_min": 15, "reflex_min": 30, "immune_min": 60, "token_min": 60},
-    "hibench": {"respiratory_min": 0,  "heartd_min": 30, "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0, "token_min": 0},
-    "disaster":{"respiratory_min": 0,  "heartd_min": 5,  "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0, "token_min": 0},
+    "normal":  {"respiratory_min": 1,  "heartd_min": 5,  "vault_min": 15, "integrity_min": 30, "thermo_min": 60, "reflex_min": 60, "immune_min": 120, "token_min": 60, "mailbox_min": 5},
+    "standby": {"respiratory_min": 15, "heartd_min": 15, "vault_min": 60, "integrity_min": 60, "thermo_min": 120, "reflex_min": 120, "immune_min": 240, "token_min": 240, "mailbox_min": 15},
+    "combat":  {"respiratory_min": 0.5,"heartd_min": 2,  "vault_min": 15, "integrity_min": 15, "thermo_min": 15, "reflex_min": 30, "immune_min": 60, "token_min": 60, "mailbox_min": 2},
+    "hibench": {"respiratory_min": 0,  "heartd_min": 30, "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0, "token_min": 0, "mailbox_min": 0},
+    "disaster":{"respiratory_min": 0,  "heartd_min": 5,  "vault_min": 0,  "integrity_min": 0,  "thermo_min": 0,  "reflex_min": 0, "immune_min": 0, "token_min": 0, "mailbox_min": 0},
 }
 
 def get_current_mode() -> str:
@@ -343,6 +357,7 @@ def run_loop(interval_min: int = 1, stop_event=None):
         "immune": 0,
         "digest": 0,
         "token": 0,
+        "mailbox": 0,
     }
     digest_hour = 4  # 每天 04:00 执行 digest
     heartd_result = read_state().get("heartd_last") or {}
@@ -360,6 +375,7 @@ def run_loop(interval_min: int = 1, stop_event=None):
         counters["reflex"]       += interval_min
         counters["immune"]       += interval_min
         counters["token"]        += interval_min
+        counters["mailbox"]      += interval_min
 
         # digest: 每天 04:00
         if now.hour == digest_hour and now.minute < interval_min:
@@ -434,6 +450,14 @@ def run_loop(interval_min: int = 1, stop_event=None):
             if r.get("reminders", 0) > 0 and HAS_PAIN_BUS:
                 pain_bus.emit("P3", "token_lifecycle",
                               f"{r['reminders']} 枚令牌超时待处理", details=r)
+
+        if counters["mailbox"] >= schedule["mailbox_min"] and schedule["mailbox_min"] > 0:
+            counters["mailbox"] = 0
+            r = run_mailbox_watch()
+            log_event("mailbox", "scan", json.dumps(r))
+            if r.get("status") == "new":
+                # 疼痛信号已由 mailbox_watch 内部发出（P2），此处仅记录
+                log_event("mailbox", "new_messages", json.dumps(r.get("messages", [])))
 
         # 更新状态文件
         state = read_state()
