@@ -175,7 +175,31 @@
       fetch("/animlink/api/nodes").then(function (r) { return r.ok ? r.json() : Promise.reject(); }).catch(function () { return sampleData; }),
       fetch("/animlink/api/trust").then(function (r) { return r.ok ? r.json() : Promise.reject(); }).catch(function () { return sampleTrust; })
     ]).then(function (results) {
-      return { nodes: results[0].nodes || [], trust: results[1].scores || {} };
+      // 兼容两种响应结构：{nodes:[...]} 或裸数组 [...]
+      var rawNodes = results[0];
+      var nodeList = Array.isArray(rawNodes) ? rawNodes : (rawNodes.nodes || []);
+      var trust = results[1].scores || {};
+      // id 别名映射：registry 节点 id → trust_scores 中的 key
+      var alias = { 'iris-openclaw': 'iris' };
+      var shunIds = { 'stellar-nyx-1786423182347': 1, 'stellar-nyx-1785219368111': 1 };
+      var out = [];
+      for (var i = 0; i < nodeList.length; i++) {
+        var n = nodeList[i];
+        var tKey = alias[n.id] || n.id;
+        if (shunIds[n.id]) tKey = 'kronos-shun';
+        var ts = trust[tKey] || {};
+        var trustVal = ts.trust;
+        if (trustVal == null) trustVal = (n.trust != null ? n.trust : (n.trust_seed != null ? n.trust_seed : 0));
+        out.push({
+          id: n.id, label: n.label || n.id, did: n.did || '', platform: n.platform || '',
+          status: n.status || 'inactive', lastSeen: n.lastSeen || n.last_seen || '',
+          trust: trustVal,
+          tokens: (ts.total_tokens != null ? ts.total_tokens : (n.tokens || 0)),
+          completed: (ts.completed != null ? ts.completed : (n.completed || 0)),
+          tier: n.tier || '', hostname: n.hostname || ''
+        });
+      }
+      return { nodes: out, trust: trust };
     });
   }
 

@@ -39,7 +39,16 @@ class AuthConfig:
         """从 config.yaml 解析值，回退到硬编码默认值"""
         if name == 'AUTH_DIR':
             val = get_config('memguard.auth_dir', None)
-            return val if val else r"Z:\qclaw\memguard_auth"
+            # 配置指向的盘不可达（如 SMB Z: 未挂载）时回退本地 data/
+            if val and os.path.exists(os.path.splitdrive(val)[0] + os.sep):
+                return val
+            local_fallback = os.path.join(
+                os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                'data', 'memguard_auth'
+            )
+            if val:
+                logger.warning(f'AUTH_DIR {val} 不可达，回退到 {local_fallback}')
+            return local_fallback
 
         if name == 'KEYS_FILE':
             return os.path.join(self.AUTH_DIR, "node_keys.json")
@@ -79,6 +88,7 @@ class NodeType(Enum):
     KRONOS_HENG = "kronos-heng"
     KRONOS_SHUN = "kronos-shun"
     HUMAN = "human"  # 人类用户
+    EXTERNAL = "external"  # 外部节点（如 HY 便携智能体）
 
 # ========== 数据结构 ==========
 @dataclass
@@ -529,6 +539,50 @@ class AuthManager:
         logger.info(f"双重鉴权成功: node={node_id}, session={session.session_id[:16]}...")
         return True, "双重鉴权成功", session
     
+    # ========== WebDAV Gateway 专用（无设备验证）==========
+    
+    def webdav_login(self, node_id: str, plain_key: str) -> Tuple[bool, str, Optional[Session]]:
+        """
+        WebDAV Gateway 登录：仅验证密钥，不验证设备指纹
+        用于外部节点通过 WebDAV Gateway 访问 NAS
+        返回: (success, message, session)
+        """
+        logger.info(f"WebDAV login: node={node_id}")
+        
+        # 1. 验证密钥
+        key_valid, key_msg = self.verify_key(node_id, plain_key)
+        if not key_valid:
+            logger.warning(f"WebDAV login failed(key): {key_msg} (node={node_id})")
+            return False, key_msg, None
+        
+        # 2. 创建会话（device_id 为空字符串，表示非设备绑定会话）
+        session = self._create_session_internal(node_id, device_id=None)
+        
+        logger.info(f"WebDAV login success: node={node_id}, session={session.session_id[:16]}...")
+        return True, "login success", session
+    
+    def _create_session_internal(self, node_id: str, device_id: str = None) -> Session:
+        """创建会话（内部方法）"""
+        session_id = secrets.token_urlsafe(32)
+        expires_at = datetime.now() + timedelta(hours=AuthConfig.SESSION_EXPIRE_HOURS)
+        session = Session(
+            session_id=session_id,
+            node_id=node_id,
+            device_id=device_id or '',
+            created_at=datetime.now().isoformat(),
+            expires_at=expires_at.isoformat()
+        )
+        self.sessions[session_id] = session
+        self._save_all()
+        return session
+    
+    def revoke_session(self, session_id: str):
+        """撤销会话"""
+        if session_id in self.sessions:
+            del self.sessions[session_id]
+            logger.info(f"会话已撤销: {session_id[:16]}...")
+            self._save_all()
+
     # ========== 会话管理 ==========
     
     def create_session(self, node_id: str, device_id: str) -> Session:

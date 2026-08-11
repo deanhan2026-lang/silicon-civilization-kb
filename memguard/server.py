@@ -66,13 +66,17 @@ CORS(app)
 # ========== Security: API Key Gate ==========
 import secrets
 _API_KEY = os.environ.get('MEMGUARD_API_KEY') or os.environ.get('API_KEY')
-_PUBLIC_PREFIXES = ('/stellar/', '/stellar', '/polaris/', '/polaris', '/animlink/', '/animlink', '/gateway/', '/gateway', '/health', '/api/health')
+_PUBLIC_PREFIXES = ('/stellar/', '/stellar', '/polaris/', '/polaris', '/animlink/', '/animlink', '/gateway/', '/gateway', '/health', '/api/health', '/api/webdav/info', '/api/webdav/auth/login')
+
+_WEBDAV_GUARD_ROUTES = ('/api/webdav/',)  # WebDAV Gateway routes need no X-API-Key (handled by webdav_gateway's own auth)
 
 @app.before_request
 def security_gate():
     """Require X-API-Key header for all non-public routes."""
     if request.path.startswith(_PUBLIC_PREFIXES):
         return None  # brand site + polaris: public
+    if request.path.startswith(_WEBDAV_GUARD_ROUTES):
+        return None  # WebDAV Gateway has its own auth (session-based)
     if request.method == 'OPTIONS':
         return None  # CORS preflight
     if not _API_KEY:
@@ -87,6 +91,16 @@ logger = logging.getLogger(__name__)
 engine = MemGuardEngine()
 sync_engine = SyncEngine()
 auth_mgr = AuthManager()
+
+# ========== WebDAV Gateway（安全隔离层）==========
+from memguard.webdav_gateway import WEBDAV_BLUEPRINT
+app.register_blueprint(WEBDAV_BLUEPRINT)
+
+# 让 blueprint 能访问 auth_mgr
+app.auth_mgr = auth_mgr
+
+# 启动信息
+print(f'[Gateway] WebDAV Gateway registered: /api/webdav/*')
 
 def require_operator(op_type: str):
     def decorator(f):
@@ -707,7 +721,7 @@ def animlink_api_network():
 
 @app.route('/animlink/api/nodes', methods=['GET'])
 def animlink_api_nodes():
-    """Return all nodes from WebDAV"""
+    """Return all nodes from WebDAV, merged with trust scores (structure: {nodes: [...]})"""
     from flask import jsonify
     import json, urllib.request, base64
     WEBDAV_BASE = 'http://100.123.195.10:5005/qclaw'
@@ -716,8 +730,32 @@ def animlink_api_nodes():
         req = urllib.request.Request(f'{WEBDAV_BASE}/mesh/registry.json', headers=_auth)
         with urllib.request.urlopen(req, timeout=10) as r:
             data = json.loads(r.read())
+        req2 = urllib.request.Request(f'{WEBDAV_BASE}/tokens/trust_scores.json', headers=_auth)
+        try:
+            with urllib.request.urlopen(req2, timeout=10) as r2:
+                trust = json.loads(r2.read())
+        except Exception:
+            trust = {}
         nodes = data.get('nodes', {})
-        return jsonify(list(nodes.values()))
+        scores = trust.get('scores', {}) if isinstance(trust, dict) else {}
+        # id 别名映射：registry 节点 id → trust_scores.json 中的 key
+        trust_alias = {'iris-openclaw': 'iris'}
+        shun_ids = {'stellar-nyx-1786423182347', 'stellar-nyx-1785219368111'}
+        node_list = []
+        for nid, nd in nodes.items():
+            trust_key = trust_alias.get(nid, nid)
+            if trust_key in shun_ids:
+                trust_key = 'kronos-shun'
+            ts = scores.get(trust_key, {})
+            trust_val = ts.get('trust')
+            if trust_val is None:
+                trust_val = nd.get('trust_seed', 0.0)
+            merged = dict(nd)
+            merged['trust'] = trust_val
+            merged['tokens'] = ts.get('total_tokens', 0)
+            merged['completed'] = ts.get('completed', 0)
+            node_list.append(merged)
+        return jsonify({'nodes': node_list})
     except Exception as e:
         return jsonify({'error': str(e), 'nodes': []}), 200
 
@@ -817,28 +855,34 @@ def server_error(e):
     logger.error(f'Server Error: {e}')
     return jsonify({'error': 'Internal Server Error'}), 500
 
-if __name__ == '__main__':
-    port = int(os.environ.get('MEMGUARD_PORT', 5050))
-    host = os.environ.get('MEMGUARD_HOST', '0.0.0.0')
-    debug = os.environ.get('MEMGUARD_DEBUG', 'false').lower() == 'true'
-    print('=' * 50)
-    print(f'MemGuard-GM API Server v2.1 - {host}:{port}')
-    print('=' * 50)
-    Storage.ensure_dir(Config.AUDIT_DIR)
-    Storage.ensure_dir(Config.BASELINE_DIR)
-    
-    # 启动时验证核心文件完整性
-    try:
-        from memguard.integrity import SignatureManager
-        sm = SignatureManager()
-        results, tamper_records = sm.verify_all_core_files()
-        if tamper_records:
-            print(f'[WARN] Detected {len(tamper_records)} file tamper warnings')
-            for r in tamper_records:
-                print(f'  {r.filename}: {r.detection_type}')
-        else:
-            print(f'[OK] Core file integrity verified ({len(results)} files)')
-    except Exception as e:
-        print(f'[WARN] Integrity verification failed: {e}')
-    
-    app.run(host=host, port=port, debug=debug)
+# ========== 启动参数 ==========
+port = int(os.environ.get('MEMGUARD_PORT', 5050))
+host = os.environ.get('MEMGUARD_HOST', '0.0.0.0')
+debug = os.environ.get('MEMGUARD_DEBUG', 'false').lower() == 'true'
+
+# ========== 启动信息 ==========
+print('=' * 60)
+print(f'MemGuard-GM v2.1 + WebDAV Gateway')
+print(f'  API:       http://0.0.0.0:{port}/')
+print(f'  WebDAV:    http://0.0.0.0:{port}/api/webdav/*  ← 安全网关')
+print('=' * 50)
+print(f'MemGuard-GM API Server v2.1 - {host}:{port}')
+print('=' * 50)
+Storage.ensure_dir(Config.AUDIT_DIR)
+Storage.ensure_dir(Config.BASELINE_DIR)
+
+# 启动时验证核心文件完整性
+try:
+    from memguard.integrity import SignatureManager
+    sm = SignatureManager()
+    results, tamper_records = sm.verify_all_core_files()
+    if tamper_records:
+        print(f'[WARN] Detected {len(tamper_records)} file tamper warnings')
+        for r in tamper_records:
+            print(f'  {r.filename}: {r.detection_type}')
+    else:
+        print(f'[OK] Core file integrity verified ({len(results)} files)')
+except Exception as e:
+    print(f'[WARN] Integrity verification failed: {e}')
+
+app.run(host=host, port=port, debug=debug)

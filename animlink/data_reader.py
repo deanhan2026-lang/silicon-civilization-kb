@@ -97,6 +97,10 @@ def _refresh_cache():
         nodes = []
         display = {"nyx-windows": "Nyx-Windows", "iris": "Iris", 
                    "kronos-heng": "Kronos-恒", "kronos-shun": "Kronos-瞬", "nyx-mac": "Nyx-Mac"}
+        # id 别名映射：registry 节点 id → trust_scores.json 中的 key（历史遗留不一致）
+        trust_alias = {"iris-openclaw": "iris"}
+        # STELLAR 桌面端注册的节点 → 对应的 Kronos 节点（瞬）
+        shun_ids = {"stellar-nyx-1786423182347", "stellar-nyx-1785219368111"}
         for nid, ndata in registry.get("nodes", {}).items():
             last_seen = ndata.get("lastSeen", ndata.get("lastHeartbeat", ""))
             # Trust the registry's status field first
@@ -108,12 +112,19 @@ def _refresh_cache():
                     delta = abs((datetime.now() - datetime.fromisoformat(last_seen.replace("Z", "+00:00"))).total_seconds())
                     is_active = delta < 3600
                 except: pass
-            ts_data = trust.get("scores", {}).get(nid, {})
+            # 信任分解析：先按别名取 trust_scores，再回退 trust_seed，最后 0.0
+            trust_key = trust_alias.get(nid, nid)
+            if trust_key in shun_ids:
+                trust_key = "kronos-shun"
+            ts_data = trust.get("scores", {}).get(trust_key, {})
+            trust_val = ts_data.get("trust")
+            if trust_val is None:
+                trust_val = ndata.get("trust_seed", 0.0)
             nodes.append({
                 "id": nid, "label": display.get(nid, nid),
                 "did": ndata.get("did", ""), "hostname": ndata.get("hostname", ""),
                 "status": "active" if is_active else "inactive",
-                "lastSeen": last_seen, "trust": ts_data.get("trust", 0.0),
+                "lastSeen": last_seen, "trust": trust_val,
                 "tokens": ts_data.get("total_tokens", 0), "completed": ts_data.get("completed", 0),
             })
         
